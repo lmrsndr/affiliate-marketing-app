@@ -6,6 +6,7 @@
       <p class="text-sm text-center text-gray-600 mb-4">
         We've emailed you a 6-digit verification code.
       </p>
+
       <input
         v-model="code"
         type="text"
@@ -15,11 +16,19 @@
         :disabled="loading"
         @keyup.enter="verifyCode"
       />
+
+      <label class="inline-flex items-center mt-2 mb-4 text-sm text-gray-600">
+        <input type="checkbox" v-model="trustDevice" class="mr-2" />
+        Trust this device for 30 days
+      </label>
+
       <div v-if="error" class="error">{{ error }}</div>
       <div class="attempt">Attempt {{ attempt }} of 5</div>
+
       <div class="progress-bar-wrapper" v-if="cooldown > 0">
         <div class="progress-bar" :style="{ width: cooldownPercent + '%' }"></div>
       </div>
+
       <div class="button-group">
         <button class="btn" @click="verifyCode" :disabled="loading || !code">
           ✅ Verify
@@ -28,6 +37,7 @@
           🔁 Resend <span v-if="cooldown > 0">({{ cooldown }}s)</span>
         </button>
       </div>
+
       <p class="text-xs text-center mt-4 text-gray-500">
         Want stronger protection? Set up
         <router-link to="/settings/security" class="text-blue-500 underline">app-based 2FA</router-link>.
@@ -42,6 +52,7 @@ import API from "@/api";
 
 const emit = defineEmits(["verified"]);
 const code = ref("");
+const trustDevice = ref(false);
 const error = ref(null);
 const loading = ref(false);
 const cooldown = ref(0);
@@ -63,26 +74,30 @@ const verifyCode = async () => {
     error.value = "Please enter a 6-digit code.";
     return;
   }
+
   error.value = null;
   loading.value = true;
 
   try {
     await refreshToken();
-    const { data } = await API.post("/2fa-email/verify", { code: code.value });
+    const { data } = await API.post("/2fa-email/verify", {
+      code: code.value,
+      trustThisDevice: trustDevice.value,
+    });
 
     if (data.message === "2FA verified") {
       emit("verified");
-    } else if (data.message === "2FA code sent") {
-      error.value = "🔁 Your code expired. A new one was sent.";
-      code.value = "";
-      attempt.value += 1;
-      startCooldown();
     } else {
       error.value = data.message || "Unexpected response.";
       attempt.value += 1;
     }
   } catch (err) {
-    error.value = err.response?.data?.message || "Verification failed.";
+    const msg = err.response?.data?.message;
+    if (msg === "2FA code expired. Please request a new one.") {
+      error.value = "⏰ Your code has expired. Please click 'Resend'.";
+    } else {
+      error.value = msg || "Verification failed.";
+    }
     attempt.value += 1;
   } finally {
     loading.value = false;
