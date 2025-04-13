@@ -1,28 +1,56 @@
 <template>
-  <div class="home-view">
-    <!-- 🐝 Hero Banner -->
+  <div class="landing-page">
+    <!-- TRUST HERO SECTION -->
     <section class="hero">
-      <div class="hero-text">
-        <h1>Discover Smart Subscriptions</h1>
-        <p>Curated partners. Personalized picks. Seamless rewards.</p>
+      <div class="hero-content">
+        <h1>Trust What You Subscribe To</h1>
+        <p>BundleBee connects you with verified UK subscription brands — powered by real reviews, curated rankings, and complete transparency.</p>
         <router-link to="/login" class="cta-btn">Join the Hive</router-link>
+        <div class="trust-points">
+          <span>✔ Verified Partners</span>
+          <span>⭐ Genuine Reviews</span>
+          <span>🔒 Secure, Ad-Free Discovery</span>
+        </div>
       </div>
     </section>
 
-    <!-- 💼 Partner Grid -->
-    <section class="affiliate-grid">
-      <div v-if="boxes.length === 0" class="loading">Loading partners...</div>
+    <!-- HOW IT WORKS -->
+    <section class="how-it-works">
+      <h2>How It Works</h2>
+      <div class="steps">
+        <div class="step">
+          <span>🔍</span>
+          <h3>Browse</h3>
+          <p>Explore curated, verified UK subscription brands by interest or values.</p>
+        </div>
+        <div class="step">
+          <span>🎯</span>
+          <h3>Get Matched</h3>
+          <p>Receive smart, bias-free recommendations — no ads or fake rankings.</p>
+        </div>
+        <div class="step">
+          <span>💬</span>
+          <h3>Trust the Reviews</h3>
+          <p>Every review is user-authenticated and ranked by helpfulness.</p>
+        </div>
+        <div class="step">
+          <span>🛒</span>
+          <h3>Subscribe Confidently</h3>
+          <p>Click through securely, knowing you’re making an informed choice.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURED PARTNERS -->
+    <section class="featured-grid">
+      <h2>Trending UK Partners</h2>
+      <div v-if="boxes.length === 0" class="loading">Loading trusted brands...</div>
       <div v-for="box in boxes" :key="box._id" class="card">
         <img :src="box.imageUrl" :alt="box.name" class="logo" @error="onImgError($event)" />
-        <div class="card-badges">
-          <span class="badge trending">🔥 Trending</span>
-          <span class="badge verified">✔ Verified</span>
-        </div>
-        <h2>{{ box.name }}</h2>
+        <h3>{{ box.name }}</h3>
         <p>{{ box.description }}</p>
-        <div class="match-score">🎯 Your Match: 91%</div>
         <div class="card-actions">
-          <a :href="box.affiliateLink" target="_blank" class="visit-btn">Visit Partner</a>
+          <a :href="box.affiliateLink" target="_blank" class="visit-btn">Visit</a>
           <router-link :to="`/partner/${box._id}`" class="details-btn">More Info</router-link>
         </div>
       </div>
@@ -41,15 +69,15 @@ export default {
 
     const fetchBoxes = async () => {
       try {
-        const response = await API.get("/boxes/public");
-        boxes.value = response.data;
-      } catch (error) {
-        console.error("❌ Failed to fetch partner boxes:", error);
+        const res = await API.get("/boxes/public");
+        boxes.value = res.data;
+      } catch (err) {
+        console.error("❌ Failed to fetch partner boxes:", err);
       }
     };
 
     const onImgError = (e) => {
-      e.target.src = "/default-logo.png"; // fallback image
+      e.target.src = "/default.png";
     };
 
     onMounted(() => {
@@ -62,104 +90,113 @@ export default {
 </script>
 
 <style scoped>
-.home-view {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.landing-page {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f6f9fc;
+  color: #222;
   padding: 2rem;
   max-width: 1200px;
   margin: auto;
 }
 
-/* 🌟 Hero Section */
+/* HERO SECTION */
 .hero {
-  background: linear-gradient(135deg, #ffdc80, #fcb045);
-  border-radius: 18px;
-  padding: 2.5rem;
+  background: linear-gradient(145deg, #e6f7ff, #ffffff);
+  padding: 3rem 2rem;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   text-align: center;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom: 2.5rem;
 }
 
-.hero-text h1 {
+.hero-content h1 {
   font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.hero-text p {
-  font-size: 1.2rem;
+  font-weight: bold;
   margin-bottom: 1rem;
 }
 
-.cta-btn {
-  background-color: #000;
-  color: #fff;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: bold;
+.hero-content p {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
 }
 
-/* 🔳 Grid Display */
-.affiliate-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+.cta-btn {
+  background-color: #ffb700;
+  color: #000;
+  font-weight: 600;
+  padding: 0.8rem 1.6rem;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.trust-points {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+/* HOW IT WORKS */
+.how-it-works {
+  margin-top: 3rem;
+  text-align: center;
+}
+
+.how-it-works h2 {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 2rem;
+}
+
+.step {
+  background: #fff;
+  padding: 1.2rem;
+  border-radius: 12px;
+  width: 250px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+}
+
+.step span {
+  font-size: 2rem;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+/* FEATURED PARTNERS */
+.featured-grid {
+  margin-top: 4rem;
+}
+
+.featured-grid h2 {
+  text-align: center;
+  font-size: 1.6rem;
+  margin-bottom: 2rem;
 }
 
 .card {
   background: #fff;
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  margin-bottom: 2rem;
   text-align: center;
-  position: relative;
-}
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
 }
 
 .card img.logo {
-  max-height: 100px;
-  object-fit: contain;
+  max-height: 80px;
   margin-bottom: 1rem;
+  object-fit: contain;
 }
 
-/* 📛 Badges */
-.card-badges {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.badge {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 5px;
-  color: #fff;
-  font-weight: bold;
-}
-
-.badge.trending {
-  background: #e74c3c;
-}
-
-.badge.verified {
-  background: #2ecc71;
-}
-
-/* 🎯 Match Score */
-.match-score {
-  font-size: 0.9rem;
-  color: #555;
-  margin-top: 0.5rem;
-}
-
-/* 📎 Buttons */
 .card-actions {
   display: flex;
   justify-content: center;
@@ -168,20 +205,19 @@ export default {
 }
 
 .visit-btn, .details-btn {
-  padding: 0.5rem 0.9rem;
+  padding: 0.6rem 1rem;
   border-radius: 6px;
   text-decoration: none;
-  font-size: 0.9rem;
-  transition: background 0.3s ease;
+  font-weight: 500;
 }
 
 .visit-btn {
-  background-color: #27ae60;
+  background-color: #2ecc71;
   color: white;
 }
 
 .details-btn {
-  background-color: #2980b9;
+  background-color: #3498db;
   color: white;
 }
 
