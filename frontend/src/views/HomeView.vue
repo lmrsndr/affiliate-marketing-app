@@ -6,7 +6,6 @@
       <div class="hero-content">
         <h1><span class="highlight">Trusted Subscriptions</span>, Curated for You</h1>
         <p>BundleBee is the UK’s marketplace for authentic reviews, verified partners, and unbiased recommendations. Discover smart, secure subscriptions you can actually trust.</p>
-        <input type="text" placeholder="Search subscription boxes..." class="search-bar" />
         <router-link to="/login" class="cta-btn">Join the Hive</router-link>
         <div class="trust-points">
           <span>✔ Verified Brands</span>
@@ -65,7 +64,7 @@
     <section class="verified-strip">
       <h2>Verified Partners</h2>
       <div class="verified-row">
-        <div v-if="verifiedBoxes.length" v-for="box in verifiedBoxes.slice(0, 4)" :key="box._id" class="verified-box hoverable">
+        <div v-if="verifiedBoxes.length" v-for="box in verifiedBoxes.slice(0, 4)" :key="box._id" class="verified-box">
           <img :src="box.imageUrl" :alt="box.name" @error="onImgError($event)" />
           <p>{{ box.name }}</p>
           <span class="badge verified-badge">🛡 Verified</span>
@@ -77,7 +76,7 @@
     <section class="featured-grid">
       <h2>Trending UK Partners</h2>
       <div v-if="boxes.length === 0" class="loading">Loading trusted brands...</div>
-      <div v-for="box in boxes" :key="box._id" class="card hoverable">
+      <div v-for="box in boxes" :key="box._id" class="card">
         <img :src="box.imageUrl" :alt="box.name" class="logo" @error="onImgError($event)" />
         <h3>
           {{ box.name }}
@@ -95,7 +94,7 @@
     <!-- VERIFIED MODAL -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-content">
-        <h3>🛡 What is a Verified Partner?</h3>
+        <h3>What is a Verified Partner?</h3>
         <p>Verified partners on BundleBee meet our highest standards of transparency, service, and verified customer satisfaction. We ensure they've passed authenticity checks and meet ongoing quality benchmarks.</p>
         <button @click="showModal = false">Close</button>
       </div>
@@ -150,22 +149,3 @@ export default {
   }
 };
 </script>
-
-<style scoped>
-.search-bar {
-  margin-top: 1rem;
-  padding: 0.6rem 1rem;
-  width: 100%;
-  max-width: 400px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 1rem;
-}
-.hoverable {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.hoverable:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
-</style>
