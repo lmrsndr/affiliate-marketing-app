@@ -1,5 +1,5 @@
 <template>
-  <div :class="['landing-page', isDark ? 'dark-mode' : '']">
+  <div class="landing-page">
     <!-- TRUSTED HERO SECTION -->
     <section class="hero updated-hero">
       <div class="hero-bee-overlay"></div>
@@ -12,25 +12,14 @@
           <span>⭐ Honest Reviews</span>
           <span>🔐 100% Transparency</span>
         </div>
-        <button class="dark-toggle" @click="toggleDark">
-          <transition name="toggle">
-            <span :key="isDark">{{ isDark ? 'Light Mode' : 'Dark Mode' }}</span>
-          </transition>
-        </button>
       </div>
     </section>
 
-    <!-- TESTIMONIAL CAROUSEL -->
-    <section class="testimonial-carousel">
-      <h2>What Our Users Are Saying</h2>
-      <div class="testimonial">
-        <transition name="fade" mode="out-in">
-          <blockquote :key="currentIndex">
-            “{{ testimonials[currentIndex].quote }}”
-            <footer>— {{ testimonials[currentIndex].author }}</footer>
-          </blockquote>
-        </transition>
-      </div>
+    <!-- BUNDLEBEE SECTION -->
+    <section class="bundlebee-brand">
+      <img src="/bundlebee-logo.png" alt="BundleBee Logo" />
+      <h2>Why BundleBee?</h2>
+      <p>We're not just a marketplace — we’re a movement for honest, smart, and ethical subscription discovery. Backed by trust, powered by transparency.</p>
     </section>
 
     <!-- HOW IT WORKS TILES -->
@@ -60,95 +49,79 @@
       </div>
     </section>
 
-    <!-- VERIFIED PARTNERS PREVIEW -->
-    <section class="verified-strip">
-      <h2>Verified Partners</h2>
-      <div class="verified-row">
-        <div v-if="verifiedBoxes.length" v-for="box in verifiedBoxes.slice(0, 4)" :key="box._id" class="verified-box">
-          <img :src="box.imageUrl" :alt="box.name" @error="onImgError($event)" />
-          <p>{{ box.name }}</p>
-          <span class="badge verified-badge">🛡 Verified</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- FEATURED PARTNERS GRID -->
-    <section class="featured-grid">
+    <!-- TRENDING PARTNERS CAROUSEL -->
+    <section class="trending-carousel">
       <h2>Trending UK Partners</h2>
-      <div v-if="boxes.length === 0" class="loading">Loading trusted brands...</div>
-      <div v-for="box in boxes" :key="box._id" class="card">
-        <img :src="box.imageUrl" :alt="box.name" class="logo" @error="onImgError($event)" />
-        <h3>
-          {{ box.name }}
-          <span v-if="box.isTrending" class="trending-icon">⭐</span>
-        </h3>
-        <p>{{ box.description }}</p>
-        <div class="badge" v-if="box.isVerified" @click="showModal = true">Verified Partner</div>
-        <div class="card-actions">
-          <a :href="box.affiliateLink" target="_blank" class="visit-btn">Visit</a>
-          <router-link :to="`/partner/${box._id}`" class="details-btn">More Info</router-link>
+      <div v-for="(group, index) in categorizedPartners" :key="index" class="carousel-row">
+        <h3>{{ group.category }}</h3>
+        <div class="carousel-tiles">
+          <div class="carousel-tile" v-for="partner in group.partners" :key="partner._id">
+            <img :src="partner.imageUrl" :alt="partner.name" @error="onImgError($event)" />
+            <p>{{ partner.name }}</p>
+            <div class="badge" v-if="partner.isVerified">🛡 Verified</div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- VERIFIED MODAL -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-content">
-        <h3>What is a Verified Partner?</h3>
-        <p>Verified partners on BundleBee meet our highest standards of transparency, service, and verified customer satisfaction. We ensure they've passed authenticity checks and meet ongoing quality benchmarks.</p>
-        <button @click="showModal = false">Close</button>
+    <!-- TESTIMONIAL CAROUSEL -->
+    <section class="testimonial-carousel">
+      <h2>What Our Users Are Saying</h2>
+      <div class="testimonial">
+        <transition name="fade" mode="out-in">
+          <blockquote :key="currentIndex">
+            {{ testimonials[currentIndex].quote }}
+            <footer>— {{ testimonials[currentIndex].author }}</footer>
+          </blockquote>
+        </transition>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
-<script>
+<script setup>
 import { ref, onMounted, computed } from 'vue';
 import API from '../api.js';
 
-export default {
-  name: 'HomePage',
-  setup() {
-    const boxes = ref([]);
-    const testimonials = ref([
-      { quote: "Finally a marketplace I can trust.", author: "Alice, Leeds" },
-      { quote: "Every partner I tried from BundleBee delivered real value.", author: "Tom, Bristol" },
-      { quote: "Reviews actually reflect reality. Love the clean design too!", author: "Samira, London" }
-    ]);
-    const currentIndex = ref(0);
-    const isDark = ref(false);
-    const showModal = ref(false);
+const boxes = ref([]);
+const testimonials = ref([
+  { quote: "Finally a marketplace I can trust.", author: "Alice, Leeds" },
+  { quote: "Every partner I tried from BundleBee delivered real value.", author: "Tom, Bristol" },
+  { quote: "Reviews actually reflect reality. Love the clean design too!", author: "Samira, London" }
+]);
+const currentIndex = ref(0);
 
-    const fetchBoxes = async () => {
-      try {
-        const res = await API.get("/boxes/public");
-        boxes.value = res.data;
-      } catch (err) {
-        console.error("❌ Failed to fetch boxes:", err);
-      }
-    };
+const categorizedPartners = computed(() => {
+  const categories = {};
+  for (const box of boxes.value) {
+    const cat = box.category || 'Other';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(box);
+  }
+  return Object.entries(categories).map(([category, partners]) => ({ category, partners }));
+});
 
-    const verifiedBoxes = computed(() => (boxes.value || []).filter(b => b.isVerified));
-
-    const onImgError = (e) => {
-      e.target.src = "/default.png";
-    };
-
-    const toggleDark = () => {
-      isDark.value = !isDark.value;
-    };
-
-    onMounted(() => {
-      fetchBoxes();
-      setInterval(() => {
-        currentIndex.value = (currentIndex.value + 1) % testimonials.value.length;
-      }, 5000);
-    });
-
-    return { boxes, verifiedBoxes, onImgError, testimonials, currentIndex, isDark, toggleDark, showModal };
+const fetchBoxes = async () => {
+  try {
+    const res = await API.get("/boxes/public");
+    boxes.value = res.data;
+  } catch (err) {
+    console.error("❌ Failed to fetch boxes:", err);
   }
 };
+
+const onImgError = (e) => {
+  e.target.src = "/default.png";
+};
+
+onMounted(() => {
+  fetchBoxes();
+  setInterval(() => {
+    currentIndex.value = (currentIndex.value + 1) % testimonials.value.length;
+  }, 5000);
+});
 </script>
+
 
 <style scoped>
 .search-bar {
@@ -169,67 +142,161 @@ export default {
   transform: scale(1.02);
 }
 
-.testimonial-carousel {
-  background: radial-gradient(circle at top left, #fefefe, #e9f4ff);
-  padding: 2.5rem 2rem;
-  border-radius: 1.25rem;
-  margin: 2.5rem auto;
-  max-width: 800px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+.how-it-works {
+  background-color: #f7fbff;
+  padding: 3rem 1.5rem;
+  border-radius: 16px;
+  margin: 3rem auto;
+  max-width: 960px;
   text-align: center;
-  border: 1px solid #e6f0ff;
+}
+.how-it-works h2 {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  justify-items: center;
+}
+.tile {
+  background-color: #ffffff;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  max-width: 280px;
+  text-align: center;
+  transition: transform 0.2s;
+}
+.tile:hover {
+  transform: translateY(-3px);
+}
+
+.trending-carousel {
+  background: #ffffff;
+  padding: 3rem 1.5rem;
+  margin: 3rem auto;
+  max-width: 1000px;
+  border-radius: 1rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+}
+.trending-carousel h2 {
+  font-size: 1.9rem;
+  margin-bottom: 2rem;
+  color: #003366;
+}
+.carousel-row {
+  margin-bottom: 2rem;
+}
+.carousel-row h3 {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 1rem;
+}
+.carousel-tiles {
+  display: flex;
+  overflow-x: auto;
+  gap: 1rem;
+  scroll-behavior: smooth;
+}
+.carousel-tiles::-webkit-scrollbar {
+  height: 6px;
+}
+.carousel-tiles::-webkit-scrollbar-thumb {
+  background: #cccccc;
+  border-radius: 4px;
+}
+.carousel-tile {
+  background-color: #f8faff;
+  border-radius: 10px;
+  padding: 1rem;
+  min-width: 200px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.bundlebee-brand {
+  background: linear-gradient(135deg, #eef9ff, #ffffff);
+  padding: 3rem 1.5rem;
+  border-radius: 18px;
+  margin: 3rem auto;
+  text-align: center;
+  max-width: 960px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+}
+.bundlebee-brand h2 {
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+}
+.bundlebee-brand img {
+  max-width: 120px;
+  margin-bottom: 1rem;
+}
+.bundlebee-brand p {
+  font-size: 1rem;
+  color: #444;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.hero.updated-hero {
+  background: linear-gradient(to right, #ebf5ff, #ffffff);
+  padding: 4rem 2rem;
+  border-radius: 20px;
+  text-align: center;
+  margin: 2rem auto;
+  max-width: 1000px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+.hero-content h1 {
+  font-size: 2.6rem;
+  color: #003366;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.hero-content p {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+}
+
+.testimonial-carousel {
+  background: #fcfdff;
+  padding: 2rem;
+  border-radius: 1rem;
+  margin: 2rem auto;
+  max-width: 700px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  border: 1px solid #e0e6ee;
 }
 .testimonial-carousel h2 {
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+  margin-bottom: 1.2rem;
+  font-size: 1.6rem;
   color: #005c99;
-  font-weight: 600;
 }
 .testimonial blockquote {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-style: italic;
-  color: #333;
-  max-width: 650px;
-  margin: 0 auto;
-  position: relative;
+  color: #444;
   padding: 0 1rem;
+  position: relative;
+  margin: 0 auto;
+  max-width: 600px;
 }
 .testimonial blockquote::before {
   content: '“';
-  font-size: 3rem;
+  font-size: 2.5rem;
   color: #0077cc;
   position: absolute;
   left: -10px;
-  top: -20px;
+  top: -15px;
   font-weight: bold;
 }
 .testimonial footer {
-  margin-top: 1rem;
+  margin-top: 0.8rem;
   font-weight: 600;
-  color: #666;
-}
-
-.hoverable {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.hoverable:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.8s ease-out both;
-}
-.animate-cta {
-  animation: pulse 2.5s infinite;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  color: #777;
 }
 </style>
-
