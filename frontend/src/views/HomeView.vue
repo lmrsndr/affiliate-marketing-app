@@ -17,7 +17,7 @@
 
     <!-- BUNDLEBEE SECTION -->
     <section class="bundlebee-brand">
-      <img src="/bundlebee-logo.png" alt="BundleBee Logo" />
+      <img src="/logo512.png" alt="BundleBee Logo" />
       <h2>Why BundleBee?</h2>
       <p>We're not just a marketplace — we’re a movement for honest, smart, and ethical subscription discovery. Backed by trust, powered by transparency.</p>
     </section>
@@ -121,7 +121,6 @@ onMounted(() => {
   }, 5000);
 });
 </script>
-
 
 <style scoped>
 .search-bar {
