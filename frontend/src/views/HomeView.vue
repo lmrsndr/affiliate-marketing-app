@@ -4,14 +4,14 @@
     <section class="hero updated-hero">
       <div class="hero-bee-overlay"></div>
       <div class="hero-content">
-        <h1><span class="highlight">Discover Subscription Brands You Can Trust</span></h1>
-        <p>BundleBee is the UK’s home for curated discovery, real reviews, and verified subscription partners. No fake ratings. No ads. Just smart shopping made simple.</p>
+        <h1><span class="highlight">Trusted Subscriptions</span>, Curated for You</h1>
+        <p>BundleBee is the UK’s marketplace for authentic reviews, verified partners, and unbiased recommendations. Discover smart, secure subscriptions you can actually trust.</p>
         <input type="text" placeholder="Search subscription boxes..." class="search-bar" />
-        <router-link to="/login" class="cta-btn">Join the Hive</router-link>
+        <router-link to="/login" class="cta-btn animate-cta">Join the Hive</router-link>
         <div class="trust-points">
           <span>✔ Verified Brands</span>
-          <span>⭐ Authentic Reviews</span>
-          <span>🔐 Trusted Discovery</span>
+          <span>⭐ Honest Reviews</span>
+          <span>🔐 100% Transparency</span>
         </div>
         <button class="dark-toggle" @click="toggleDark">
           <transition name="toggle">
@@ -21,47 +21,8 @@
       </div>
     </section>
 
-    <!-- WHY BUNDLEBEE SECTION -->
-    <section class="why-bundlebee">
-      <h2>Why BundleBee?</h2>
-      <div class="tiles">
-        <div class="tile">
-          <span>⚙️</span>
-          <h3>Intelligent Discovery</h3>
-          <p>Get tailored recommendations with no fluff or ads.</p>
-        </div>
-        <div class="tile">
-          <span>✔</span>
-          <h3>Verified Partners</h3>
-          <p>Brands pass transparency & satisfaction checks to earn our badge.</p>
-        </div>
-        <div class="tile">
-          <span>🔗</span>
-          <h3>No Fake Ratings</h3>
-          <p>We prioritize human feedback, not algorithms or paid rankings.</p>
-        </div>
-        <div class="tile">
-          <span>🧠</span>
-          <h3>Zero Ads</h3>
-          <p>Focus on discovery, not distractions. We never sell your attention.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- FEATURED VERIFIED PARTNERS -->
-    <section class="verified-strip">
-      <h2>Verified Partners</h2>
-      <div class="verified-row">
-        <div v-for="box in boxes.filter(b => b.isVerified).slice(0, 4)" :key="box._id" class="verified-box">
-          <img :src="box.imageUrl" :alt="box.name" @error="onImgError($event)" />
-          <p>{{ box.name }}</p>
-          <span class="badge verified-badge">🛡 Verified</span>
-        </div>
-      </div>
-    </section>
-
     <!-- TESTIMONIAL CAROUSEL -->
-    <section class="testimonial-carousel">
+    <section class="testimonial-carousel" @mouseenter="pauseCarousel = true" @mouseleave="pauseCarousel = false">
       <h2>What Our Users Are Saying</h2>
       <div class="testimonial">
         <transition name="fade" mode="out-in">
@@ -74,7 +35,7 @@
     </section>
 
     <!-- HOW IT WORKS TILES -->
-    <section class="how-it-works">
+    <section class="how-it-works animate-fade-in">
       <h2>How It Works</h2>
       <div class="tiles">
         <div class="tile">
@@ -100,18 +61,30 @@
       </div>
     </section>
 
+    <!-- VERIFIED PARTNERS PREVIEW -->
+    <section class="verified-strip animate-fade-in">
+      <h2>Verified Partners</h2>
+      <div class="verified-row">
+        <div v-if="verifiedBoxes.length" v-for="box in verifiedBoxes.slice(0, 4)" :key="box._id" class="verified-box hoverable">
+          <img :src="box.imageUrl" :alt="box.name" @error="onImgError($event)" />
+          <p>{{ box.name }}</p>
+          <span class="badge verified-badge">🛡 Verified</span>
+        </div>
+      </div>
+    </section>
+
     <!-- FEATURED PARTNERS GRID -->
-    <section class="featured-grid">
+    <section class="featured-grid animate-fade-in">
       <h2>Trending UK Partners</h2>
       <div v-if="boxes.length === 0" class="loading">Loading trusted brands...</div>
-      <div v-for="box in boxes" :key="box._id" class="card">
+      <div v-for="box in boxes" :key="box._id" class="card hoverable">
         <img :src="box.imageUrl" :alt="box.name" class="logo" @error="onImgError($event)" />
         <h3>
           {{ box.name }}
           <span v-if="box.isTrending" class="trending-icon">⭐</span>
         </h3>
         <p>{{ box.description }}</p>
-        <div class="badge" v-if="box.isVerified" @click="showModal = true">🛡 Verified Partner</div>
+        <div class="badge" v-if="box.isVerified" @click="showModal = true">Verified Partner</div>
         <div class="card-actions">
           <a :href="box.affiliateLink" target="_blank" class="visit-btn">Visit</a>
           <router-link :to="`/partner/${box._id}`" class="details-btn">More Info</router-link>
@@ -122,10 +95,94 @@
     <!-- VERIFIED MODAL -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-content">
-        <h3>What is a Verified Partner?</h3>
+        <h3>🛡 What is a Verified Partner?</h3>
         <p>Verified partners on BundleBee meet our highest standards of transparency, service, and verified customer satisfaction. We ensure they've passed authenticity checks and meet ongoing quality benchmarks.</p>
         <button @click="showModal = false">Close</button>
       </div>
     </div>
   </div>
 </template>
+
+<script>
+import { ref, onMounted, computed } from 'vue';
+import API from '../api.js';
+
+export default {
+  name: 'HomePage',
+  setup() {
+    const boxes = ref([]);
+    const testimonials = ref([
+      { quote: "Finally a marketplace I can trust.", author: "Alice, Leeds" },
+      { quote: "Every partner I tried from BundleBee delivered real value.", author: "Tom, Bristol" },
+      { quote: "Reviews actually reflect reality. Love the clean design too!", author: "Samira, London" }
+    ]);
+    const currentIndex = ref(0);
+    const isDark = ref(false);
+    const showModal = ref(false);
+    const pauseCarousel = ref(false);
+
+    const fetchBoxes = async () => {
+      try {
+        const res = await API.get("/boxes/public");
+        boxes.value = res.data;
+      } catch (err) {
+        console.error("❌ Failed to fetch boxes:", err);
+      }
+    };
+
+    const verifiedBoxes = computed(() => (boxes.value || []).filter(b => b.isVerified));
+
+    const onImgError = (e) => {
+      e.target.src = "/default.png";
+    };
+
+    const toggleDark = () => {
+      isDark.value = !isDark.value;
+    };
+
+    onMounted(() => {
+      fetchBoxes();
+      setInterval(() => {
+        if (!pauseCarousel.value) {
+          currentIndex.value = (currentIndex.value + 1) % testimonials.value.length;
+        }
+      }, 5000);
+    });
+
+    return { boxes, verifiedBoxes, onImgError, testimonials, currentIndex, isDark, toggleDark, showModal, pauseCarousel };
+  }
+};
+</script>
+
+<style scoped>
+.search-bar {
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.hoverable {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.hoverable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out both;
+}
+.animate-cta {
+  animation: pulse 2.5s infinite;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+</style>
