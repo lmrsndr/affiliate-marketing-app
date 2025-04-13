@@ -310,7 +310,7 @@ onMounted(() => {
   max-width: 600px;
 }
 .testimonial blockquote::before {
-  content: '“';
+  content: '';
   font-size: 2.5rem;
   color: #0077cc;
   position: absolute;
