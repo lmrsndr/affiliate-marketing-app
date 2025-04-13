@@ -240,6 +240,7 @@ onMounted(() => {
   margin: 0 auto;
 }
 
+
 .hero.updated-hero {
   background: linear-gradient(to right, #ebf5ff, #ffffff);
   padding: 4rem 2rem;
@@ -260,7 +261,31 @@ onMounted(() => {
   color: #333;
   margin-bottom: 1.5rem;
 }
-
+.cta-btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background-color: #0077cc;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  transition: background-color 0.3s;
+}
+.cta-btn:hover {
+  background-color: #005fa3;
+}
+.trust-points {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  font-size: 1rem;
+  color: #005c99;
+  font-weight: 500;
+}
 .testimonial-carousel {
   background: #fcfdff;
   padding: 2rem;
