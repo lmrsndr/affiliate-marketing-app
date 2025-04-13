@@ -1,20 +1,20 @@
 <template>
   <div class="landing-page">
-    <!-- TRUSTED HERO SECTION -->
+     <!-- TRUSTED HERO SECTION -->
     <section class="hero updated-hero">
-      <div class="hero-bee-overlay"></div>
-      <div class="hero-content">
-        <h1><span class="highlight">Trusted Subscriptions</span>, Curated for You</h1>
-        <p>BundleBee is the UK’s marketplace for authentic reviews, verified partners, and unbiased recommendations. Discover smart, secure subscriptions you can actually trust.</p>
-        <router-link to="/login" class="cta-btn">Join the Hive</router-link>
-        <div class="trust-points">
-          <span>✔ Verified Brands</span>
-          <span>⭐ Honest Reviews</span>
-          <span>🔐 100% Transparency</span>
-        </div>
-      </div>
-    </section>
-
+  <div class="hero-bee-overlay"></div>
+  <div class="hero-content">
+    <h1>Trust What You Subscribe To</h1>
+    <p>BundleBee connects you with verified UK subscription brands — powered by real reviews, curated rankings, and complete transparency.</p>
+    <router-link to="/login" class="cta-btn">Join the Hive</router-link>
+    <div class="trust-points">
+      <span>✔ Verified Partners</span>
+      <span>⭐ Genuine Reviews</span>
+      <span>🔒 Secure, Ad-Free Discovery</span>
+    </div>
+  </div>
+</section>
+    
     <!-- BUNDLEBEE SECTION -->
     <section class="bundlebee-brand">
       <img src="/logo512.png" alt="BundleBee Logo" />
