@@ -1,6 +1,6 @@
 <template>
-  <div class="landing-page">
-    <!-- TRUST HERO SECTION (Redesigned Banner) -->
+  <div :class="['landing-page', isDark ? 'dark-mode' : '']">
+    <!-- HERO SECTION -->
     <section class="hero updated-hero">
       <div class="hero-bee-overlay"></div>
       <div class="hero-content">
@@ -12,6 +12,7 @@
           <span>⭐ Honest Reviews</span>
           <span>🔐 100% Transparency</span>
         </div>
+        <button class="dark-toggle" @click="toggleDark">{{ isDark ? 'Light Mode' : 'Dark Mode' }}</button>
       </div>
     </section>
 
@@ -61,7 +62,10 @@
       <div v-if="boxes.length === 0" class="loading">Loading trusted brands...</div>
       <div v-for="box in boxes" :key="box._id" class="card">
         <img :src="box.imageUrl" :alt="box.name" class="logo" @error="onImgError($event)" />
-        <h3>{{ box.name }}</h3>
+        <h3>
+          {{ box.name }}
+          <span v-if="box.isTrending" class="trending-icon">⭐</span>
+        </h3>
         <p>{{ box.description }}</p>
         <div class="badge" v-if="box.isVerified">Verified Partner</div>
         <div class="card-actions">
@@ -87,6 +91,7 @@ export default {
       { quote: "Reviews actually reflect reality. Love the clean design too!", author: "Samira, London" }
     ]);
     const currentIndex = ref(0);
+    const isDark = ref(false);
 
     const fetchBoxes = async () => {
       try {
@@ -101,6 +106,10 @@ export default {
       e.target.src = "/default.png";
     };
 
+    const toggleDark = () => {
+      isDark.value = !isDark.value;
+    };
+
     onMounted(() => {
       fetchBoxes();
       setInterval(() => {
@@ -108,118 +117,56 @@ export default {
       }, 5000);
     });
 
-    return { boxes, onImgError, testimonials, currentIndex };
+    return { boxes, onImgError, testimonials, currentIndex, isDark, toggleDark };
   }
 };
 </script>
 
 <style scoped>
 .landing-page {
-  font-family: 'Segoe UI', sans-serif;
-  color: #222;
-  padding: 2rem;
-  max-width: 1200px;
-  margin: auto;
   background-color: #f7fcfe;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
-
-/* Redesigned Hero */
+.dark-mode {
+  background-color: #121212;
+  color: #f2f2f2;
+}
 .updated-hero {
-  background: linear-gradient(130deg, #d2f4ea, #ffffff);
+  background: linear-gradient(130deg, #bee9e8, #ffffff);
   position: relative;
   padding: 3rem 2rem;
   border-radius: 18px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   text-align: center;
   margin-bottom: 3rem;
+  overflow: hidden;
 }
-
 .hero-bee-overlay {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0;
   background-image: url('/bees-bg.svg');
-  opacity: 0.08;
   background-size: cover;
-  background-position: center;
+  opacity: 0.08;
   pointer-events: none;
 }
-
-.hero-content h1 {
-  font-size: 2.6rem;
-  margin-bottom: 0.5rem;
-}
-
-.highlight {
-  color: #007f5f;
-}
-
-.hero-content p {
-  font-size: 1.15rem;
-  margin-bottom: 1.5rem;
-}
-
-.cta-btn {
-  background-color: #ffb700;
-  color: #000;
-  font-weight: bold;
-  padding: 0.8rem 1.5rem;
-  border-radius: 8px;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.trust-points {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  font-size: 0.95rem;
+.cta-btn, .dark-toggle {
   margin-top: 1rem;
 }
-
-/* Testimonial */
-.testimonial-carousel {
-  text-align: center;
-  margin-top: 2rem;
+.trending-icon {
+  color: #f39c12;
+  margin-left: 0.5rem;
+  font-size: 1rem;
+  vertical-align: middle;
 }
-
-.testimonial-carousel h2 {
-  font-size: 1.7rem;
-  margin-bottom: 1rem;
-}
-
-.testimonial blockquote {
-  font-style: italic;
-  max-width: 700px;
-  margin: 0 auto;
-  font-size: 1.2rem;
-  color: #333;
-}
-
-.testimonial footer {
-  font-weight: bold;
-  margin-top: 0.5rem;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.5s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
-
-/* Verified Badge */
-.badge {
-  background-color: #e3f9e5;
-  color: #2e7d32;
-  padding: 0.3rem 0.7rem;
-  border-radius: 5px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin: 0.5rem 0;
+@media (max-width: 768px) {
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+  .steps {
+    flex-direction: column;
+    align-items: center;
+  }
+  .card {
+    margin-bottom: 2rem;
+  }
 }
 </style>
