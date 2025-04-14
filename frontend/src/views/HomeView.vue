@@ -167,7 +167,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ========== GENERAL STYLES ========== */
+/* ===== SEARCH BAR ===== */
 .search-bar {
   margin-top: 1rem;
   padding: 1rem 1.5rem;
@@ -185,6 +185,79 @@ onMounted(() => {
   transform: scale(1.02);
 }
 
+/* ===== HERO SECTION ===== */
+.hero.updated-hero {
+  background: linear-gradient(to right, #ebf5ff, #ffffff);
+  padding: 4rem 2rem;
+  border-radius: 20px;
+  text-align: center;
+  margin: 2rem auto;
+  max-width: 1000px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+.hero-content h1 {
+  font-size: 2.6rem;
+  color: #003366;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.hero-content p {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+}
+.cta-btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background-color: #0077cc;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  transition: background-color 0.3s;
+}
+.cta-btn:hover {
+  background-color: #005fa3;
+}
+.trust-points {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  font-size: 1rem;
+  color: #005c99;
+  font-weight: 500;
+}
+
+/* ===== BUNDLEBEE SECTION ===== */
+.bundlebee-brand {
+  background: linear-gradient(135deg, #eef9ff, #ffffff);
+  padding: 3rem 1.5rem;
+  border-radius: 18px;
+  margin: 3rem auto;
+  text-align: center;
+  max-width: 960px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+}
+.bundlebee-brand h2 {
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+}
+.bundlebee-brand img {
+  max-width: 120px;
+  margin-bottom: 1rem;
+}
+.bundlebee-brand p {
+  font-size: 1rem;
+  color: #444;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* ===== HOW IT WORKS ===== */
 .how-it-works {
   background-color: #f7fbff;
   padding: 3rem 1.5rem;
@@ -216,7 +289,37 @@ onMounted(() => {
   transform: translateY(-3px);
 }
 
-/* ========== PARTNER CAROUSEL ========== */
+/* ===== TESTIMONIAL ===== */
+.testimonial-carousel {
+  background: #fcfdff;
+  padding: 2rem;
+  border-radius: 1rem;
+  margin: 2rem auto;
+  max-width: 700px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  border: 1px solid #e0e6ee;
+}
+.testimonial-carousel h2 {
+  margin-bottom: 1.2rem;
+  font-size: 1.6rem;
+  color: #005c99;
+}
+.testimonial blockquote {
+  font-size: 1.2rem;
+  font-style: italic;
+  color: #444;
+  padding: 0 1rem;
+  position: relative;
+  margin: 0 auto;
+  max-width: 600px;
+}
+.testimonial footer {
+  margin-top: 0.8rem;
+  font-weight: 600;
+  color: #777;
+}
+
+/* ===== TRENDING CAROUSEL ===== */
 .trending-carousel {
   background: #ffffff;
   padding: 3rem 1.5rem;
@@ -238,12 +341,15 @@ onMounted(() => {
   color: #333;
   margin-bottom: 1rem;
 }
+
+/* ===== CAROUSEL TILES ===== */
 .carousel-tiles {
   display: flex;
   gap: 1rem;
   overflow-x: auto;
   scroll-behavior: smooth;
   padding-bottom: 0.5rem;
+  flex-wrap: nowrap;
 }
 .carousel-tiles::-webkit-scrollbar {
   height: 6px;
@@ -253,26 +359,22 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-/* ========== PARTNER TILE STYLES ========== */
-.carousel-tiles {
+/* ===== PARTNER TILE ===== */
+.carousel-tile {
+  background-color: #f8faff;
+  border-radius: 10px;
+  padding: 1rem;
+  width: 220px;
+  height: 340px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  flex: 0 0 auto;
   display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding-bottom: 0.5rem;
-  flex-wrap: nowrap;
-}
-
-@media (max-width: 768px) {
-  .carousel-tiles {
-    flex-direction: column;
-    overflow-x: hidden;
-  }
-  .carousel-tile {
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-  }
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
 }
 .carousel-tile .new-ribbon {
   position: absolute;
@@ -377,133 +479,19 @@ onMounted(() => {
   background-color: #d0e4ff;
 }
 
-/* ========== RESPONSIVE BREAKPOINTS ========== */
-@media (max-width: 1024px) {
+/* ===== RESPONSIVE FIX: STACK TILES ON MOBILE ===== */
+@media (max-width: 768px) {
   .carousel-tiles {
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-direction: column;
     overflow-x: hidden;
+    align-items: center;
   }
+
   .carousel-tile {
-    width: 45%;
-    max-width: 300px;
+    width: 100% !important;
+    max-width: 320px !important;
+    margin: 0 auto;
   }
 }
-
-@media (max-width: 600px) {
-  .carousel-tile {
-    width: 100%;
-    max-width: 320px;
-  }
-}
-
-/* ========== BUNDLEBEE + HERO ========== */
-.bundlebee-brand {
-  background: linear-gradient(135deg, #eef9ff, #ffffff);
-  padding: 3rem 1.5rem;
-  border-radius: 18px;
-  margin: 3rem auto;
-  text-align: center;
-  max-width: 960px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
-}
-.bundlebee-brand h2 {
-  font-size: 2.2rem;
-  margin-bottom: 1rem;
-}
-.bundlebee-brand img {
-  max-width: 120px;
-  margin-bottom: 1rem;
-}
-.bundlebee-brand p {
-  font-size: 1rem;
-  color: #444;
-  max-width: 640px;
-  margin: 0 auto;
-}
-
-.hero.updated-hero {
-  background: linear-gradient(to right, #ebf5ff, #ffffff);
-  padding: 4rem 2rem;
-  border-radius: 20px;
-  text-align: center;
-  margin: 2rem auto;
-  max-width: 1000px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
-}
-.hero-content h1 {
-  font-size: 2.6rem;
-  color: #003366;
-  font-weight: 700;
-  margin-bottom: 1rem;
-}
-.hero-content p {
-  font-size: 1.2rem;
-  color: #333;
-  margin-bottom: 1.5rem;
-}
-.cta-btn {
-  display: inline-block;
-  padding: 0.75rem 1.5rem;
-  background-color: #0077cc;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  border-radius: 8px;
-  text-decoration: none;
-  margin-top: 0.5rem;
-  transition: background-color 0.3s;
-}
-.cta-btn:hover {
-  background-color: #005fa3;
-}
-.trust-points {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-top: 2rem;
-  font-size: 1rem;
-  color: #005c99;
-  font-weight: 500;
-}
-
-/* ========== TESTIMONIAL ========== */
-.testimonial-carousel {
-  background: #fcfdff;
-  padding: 2rem;
-  border-radius: 1rem;
-  margin: 2rem auto;
-  max-width: 700px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  border: 1px solid #e0e6ee;
-}
-.testimonial-carousel h2 {
-  margin-bottom: 1.2rem;
-  font-size: 1.6rem;
-  color: #005c99;
-}
-.testimonial blockquote {
-  font-size: 1.2rem;
-  font-style: italic;
-  color: #444;
-  padding: 0 1rem;
-  position: relative;
-  margin: 0 auto;
-  max-width: 600px;
-}
-.testimonial blockquote::before {
-  content: '';
-  font-size: 2.5rem;
-  color: #0077cc;
-  position: absolute;
-  left: -10px;
-  top: -15px;
-  font-weight: bold;
-}
-.testimonial footer {
-  margin-top: 0.8rem;
-  font-weight: 600;
-  color: #777;
-}
+  
 </style>
