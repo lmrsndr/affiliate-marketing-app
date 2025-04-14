@@ -62,7 +62,7 @@
         <h3>{{ group.category }}</h3>
         <div class="carousel-tiles">
           <div class="carousel-tile" v-for="(partner, pIndex) in group.partners" :key="partner._id || `${group.category}-${pIndex}`">
-            <div class="new-ribbon" v-if="(partner.rating === undefined || partner.ratingCount === 0)">NEW</div>
+            <div class="new-ribbon" v-if="!partner.ratingCount || partner.ratingCount === 0">NEW</div>
 
             <img
               class="partner-logo"
@@ -167,8 +167,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Only added styles or modified tile section below */
-
+/* --- Partner Tile Area Only --- */
 .carousel-tile {
   background-color: #f8faff;
   border-radius: 10px;
@@ -186,14 +185,28 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
 }
-
+.carousel-tile .new-ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 4px 40px;
+  text-align: center;
+  transform: rotate(-45deg);
+  transform-origin: 0 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  pointer-events: none;
+}
 .carousel-tile .partner-logo {
   max-width: 100%;
   max-height: 80px;
   object-fit: contain;
   margin-bottom: 0.5rem;
 }
-
 .carousel-tile .partner-name {
   font-size: 1rem;
   font-weight: 600;
@@ -207,13 +220,11 @@ onMounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-
 .carousel-tile .badge {
   font-size: 0.85rem;
   color: #007700;
   margin-top: 0.25rem;
 }
-
 .carousel-tile .rating {
   display: flex;
   flex-direction: column;
@@ -222,7 +233,6 @@ onMounted(() => {
   font-size: 0.9rem;
   margin: 0.3rem 0;
 }
-
 .carousel-tile .star {
   font-size: 1rem;
   color: #ccc;
@@ -244,7 +254,6 @@ onMounted(() => {
   color: #888;
   font-style: italic;
 }
-
 .carousel-tile .tile-actions {
   margin-top: 0.75rem;
   display: flex;
@@ -252,7 +261,6 @@ onMounted(() => {
   flex-direction: column;
   width: 100%;
 }
-
 .carousel-tile .visit-btn,
 .carousel-tile .details-btn {
   padding: 0.5rem;
@@ -265,7 +273,6 @@ onMounted(() => {
   text-align: center;
   transition: background-color 0.3s;
 }
-
 .carousel-tile .visit-btn {
   background-color: #0077cc;
   color: white;
@@ -273,30 +280,11 @@ onMounted(() => {
 .carousel-tile .visit-btn:hover {
   background-color: #005fa3;
 }
-
 .carousel-tile .details-btn {
   background-color: #e8f0ff;
   color: #005fa3;
 }
 .carousel-tile .details-btn:hover {
   background-color: #d0e4ff;
-}
-
-/* NEW Ribbon */
-.new-ribbon {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: #ff4d4f;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: bold;
-  padding: 4px 40px;
-  text-align: center;
-  transform: rotate(-45deg);
-  transform-origin: 0 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  pointer-events: none;
 }
 </style>
