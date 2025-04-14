@@ -167,7 +167,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-
+/* ========== GENERAL STYLES ========== */
 .search-bar {
   margin-top: 1rem;
   padding: 1rem 1.5rem;
@@ -178,7 +178,6 @@ onMounted(() => {
   font-size: 1.15rem;
   outline: none;
   transition: box-shadow 0.3s, transform 0.2s;
-  box-shadow: 0 0 0 rgba(0, 119, 204, 0);
   background-color: #ffffff;
 }
 .search-bar:focus {
@@ -217,6 +216,7 @@ onMounted(() => {
   transform: translateY(-3px);
 }
 
+/* ========== PARTNER CAROUSEL ========== */
 .trending-carousel {
   background: #ffffff;
   padding: 3rem 1.5rem;
@@ -240,9 +240,10 @@ onMounted(() => {
 }
 .carousel-tiles {
   display: flex;
-  overflow-x: auto;
   gap: 1rem;
+  overflow-x: auto;
   scroll-behavior: smooth;
+  padding-bottom: 0.5rem;
 }
 .carousel-tiles::-webkit-scrollbar {
   height: 6px;
@@ -252,12 +253,11 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-/* --- Updated Partner Tile Section --- */
+/* ========== PARTNER TILE STYLES ========== */
 .carousel-tile {
   background-color: #f8faff;
   border-radius: 10px;
   padding: 1rem;
-  min-width: 220px;
   width: 220px;
   height: 340px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -373,7 +373,27 @@ onMounted(() => {
   background-color: #d0e4ff;
 }
 
-/* --- Rest of Original Styles --- */
+/* ========== RESPONSIVE BREAKPOINTS ========== */
+@media (max-width: 1024px) {
+  .carousel-tiles {
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: hidden;
+  }
+  .carousel-tile {
+    width: 45%;
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 600px) {
+  .carousel-tile {
+    width: 100%;
+    max-width: 320px;
+  }
+}
+
+/* ========== BUNDLEBEE + HERO ========== */
 .bundlebee-brand {
   background: linear-gradient(135deg, #eef9ff, #ffffff);
   padding: 3rem 1.5rem;
@@ -444,6 +464,7 @@ onMounted(() => {
   font-weight: 500;
 }
 
+/* ========== TESTIMONIAL ========== */
 .testimonial-carousel {
   background: #fcfdff;
   padding: 2rem;
@@ -481,5 +502,4 @@ onMounted(() => {
   font-weight: 600;
   color: #777;
 }
-
 </style>
