@@ -254,21 +254,25 @@ onMounted(() => {
 }
 
 /* ========== PARTNER TILE STYLES ========== */
-.carousel-tile {
-  background-color: #f8faff;
-  border-radius: 10px;
-  padding: 1rem;
-  width: 220px;
-  height: 340px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  flex: 0 0 auto;
+.carousel-tiles {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding-bottom: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 768px) {
+  .carousel-tiles {
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+  .carousel-tile {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
 }
 .carousel-tile .new-ribbon {
   position: absolute;
