@@ -342,7 +342,7 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-/* ===== CAROUSEL TILES ===== */
+/* ===== CAROUSEL TILES: DESKTOP (default) ===== */
 .carousel-tiles {
   display: flex;
   gap: 1rem;
@@ -479,18 +479,31 @@ onMounted(() => {
   background-color: #d0e4ff;
 }
 
-/* ===== RESPONSIVE FIX: STACK TILES ON MOBILE ===== */
-@media (max-width: 768px) {
+/* ===== RESPONSIVE: TABLET (2 per row) ===== */
+@media (max-width: 1024px) {
   .carousel-tiles {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
     overflow-x: hidden;
-    align-items: center;
   }
-
   .carousel-tile {
-    width: 100% !important;
-    max-width: 320px !important;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
     margin: 0 auto;
+  }
+}
+
+/* ===== RESPONSIVE: MOBILE (1 per row) ===== */
+@media (max-width: 640px) {
+  .carousel-tiles {
+    display: block;
+  }
+  .carousel-tile {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 1.5rem;
   }
 }
   
