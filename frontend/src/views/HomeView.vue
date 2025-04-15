@@ -319,7 +319,7 @@ onMounted(() => {
   color: #777;
 }
 
-/* ===== TRENDING CAROUSEL ===== */
+/* ===== TRENDING CAROUSEL SECTION ===== */
 .trending-carousel {
   background: #ffffff;
   padding: 3rem 1.5rem;
@@ -342,7 +342,7 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-/* ===== CAROUSEL TILES: DESKTOP (default) ===== */
+/* ===== DESKTOP CAROUSEL TILES ===== */
 .carousel-tiles {
   display: flex;
   gap: 1rem;
@@ -479,8 +479,24 @@ onMounted(() => {
   background-color: #d0e4ff;
 }
 
-/* ===== RESPONSIVE: TABLET (2 per row) ===== */
-@media (max-width: 1024px) and (min-width: 769px){
+/* ===== TOUCH DEVICE LAYOUTS ===== */
+
+/* MOBILE: 1 column on coarse pointer and max-width 768px */
+@media (pointer: coarse) and (max-width: 768px) {
+  .carousel-tiles {
+    display: block;
+    overflow-x: hidden;
+  }
+  .carousel-tile {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 1.5rem;
+    height: auto;
+  }
+}
+
+/* TABLET: 2 columns between 769px and 1024px on coarse pointer */
+@media (pointer: coarse) and (min-width: 769px) and (max-width: 1024px) {
   .carousel-tiles {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -490,21 +506,8 @@ onMounted(() => {
   .carousel-tile {
     width: 100%;
     max-width: 100%;
-    height: auto;
     margin: 0 auto;
+    height: auto;
   }
 }
-
-/* ===== RESPONSIVE: MOBILE (1 per row) ===== */
-@media (max-width: 768px) {
-  .carousel-tiles {
-    display: block;
-  }
-  .carousel-tile {
-    width: 100%;
-    max-width: 100%;
-    margin-bottom: 1.5rem;
-  }
-}
-  
 </style>
