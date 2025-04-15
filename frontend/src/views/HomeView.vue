@@ -481,8 +481,8 @@ onMounted(() => {
 
 /* ===== TOUCH DEVICE LAYOUTS ===== */
 
-/* MOBILE: 1 column on coarse pointer and max-width 768px */
-@media (pointer: coarse) and (max-width: 768px) {
+/* MOBILE: 1 column on coarse pointer and max-width 1024px */
+@media (pointer: coarse) and (max-width: 1024px) {
   .carousel-tiles {
     display: block;
     overflow-x: hidden;
@@ -496,7 +496,7 @@ onMounted(() => {
 }
 
 /* TABLET: 2 columns between 769px and 1024px on coarse pointer */
-@media (pointer: coarse) and (min-width: 769px) and (max-width: 1024px) {
+@media (pointer: coarse) and (min-width: 1025px){
   .carousel-tiles {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
