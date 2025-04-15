@@ -379,14 +379,14 @@ onMounted(() => {
 .carousel-tile .new-ribbon {
   position: absolute;
   top: 0;
-  left: 0;
+  right: 0;
   background: #ff4d4f;
   color: #fff;
   font-size: 0.7rem;
   font-weight: bold;
   padding: 4px 40px;
   text-align: center;
-  transform: rotate(-45deg);
+  transform: rotate(45deg);
   transform-origin: 0 0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   z-index: 10;
