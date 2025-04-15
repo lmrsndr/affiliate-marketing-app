@@ -1,105 +1,80 @@
 <template>
   <div class="loading-screen">
     <h2>Authenticating...</h2>
-    <p>Please wait while we log you in.</p>
+    <p>Please wait while we log you in.</p><div class="profile-section" v-if="user">
+  <img :src="user.profilePicture || defaultAvatar" alt="Profile Picture" class="profile-pic" />
+  <input type="file" @change="uploadProfilePicture" accept="image/*" />
+  <button @click="deleteProfilePicture">Remove Picture</button>
+</div>
 
-    <div class="profile-section" v-if="user">
-      <img :src="user.profilePicture || defaultAvatar" alt="Profile Picture" class="profile-pic" />
-      <input type="file" @change="uploadProfilePicture" accept="image/*" />
-      <button @click="deleteProfilePicture">Remove Picture</button>
-    </div>
   </div>
-</template>
+</template><script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
-<script>
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import API from "../api.js";
+const router = useRouter();
+const auth = useAuthStore();
 
-export default {
-  name: "OAuthCallback",
-  setup() {
-    const router = useRouter();
-    const user = ref(null);
-    const defaultAvatar =
-      "https://affiliate-marketing-app-api.onrender.com/api/user/profile-picture/generic_avatar.png";
+const user = ref(null);
+const defaultAvatar =
+  'https://affiliate-marketing-app-api.onrender.com/api/user/profile-picture/generic_avatar.png';
 
-    onMounted(async () => {
-      try {
-        // ✅ Check authentication status
-        const { data } = await API.get("/auth/status");
-        if (!data.isAuthenticated) throw new Error("Not authenticated");
+onMounted(async () => {
+  try {
+    await auth.checkAuthState();
 
-        const { user: authUser, accessToken } = data;
+    if (!auth.isAuthenticated) throw new Error('Not authenticated');
 
-        // ✅ Save access token
-        sessionStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("accessToken", accessToken);
-        API.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+    if (!auth.is2FAVerified) {
+      console.warn('🔐 2FA not verified. Redirecting to verification...');
+      sessionStorage.setItem('awaiting2FA', Date.now().toString());
+      return router.push('/verify-2fa');
+    }
 
-        // ✅ If not 2FA verified, redirect to 2FA screen and store timestamp
-        if (!authUser.twoFAVerified) {
-          console.warn("🔐 2FA not verified. Redirecting to verification...");
-          sessionStorage.setItem("awaiting2FA", Date.now().toString());
-          return router.push("/verify-2fa");
-        }
+    const res = await auth.axiosInstance.get('/user/profile');
+    user.value = {
+      email: res.data.email,
+      profilePicture: res.data.profilePicture || defaultAvatar,
+    };
 
-        // ✅ Load user profile if 2FA already verified
-        const profile = await API.get("/user/profile");
-        user.value = {
-          email: profile.data.email,
-          profilePicture: profile.data.profilePicture || defaultAvatar,
-        };
+    setTimeout(() => {
+      if (auth.isAdmin) router.push('/admin-dashboard');
+      else if (auth.isPartner) router.push('/partner-dashboard');
+      else router.push('/dashboard');
+    }, 1000);
+  } catch (err) {
+    console.error('❌ OAuth flow failed:', err);
+    router.push('/login');
+  }
+});
 
-        // ✅ Role-based redirect
-        setTimeout(() => {
-          if (authUser.role === "admin") router.push("/admin-dashboard");
-          else if (authUser.role === "partner") router.push("/partner-dashboard");
-          else router.push("/dashboard");
-        }, 1000);
-      } catch (err) {
-        console.error("❌ OAuth flow failed:", err);
-        router.push("/login");
-      }
+const uploadProfilePicture = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('profilePicture', file);
+
+  try {
+    const response = await auth.axiosInstance.post('/user/upload-profile-picture', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
-
-    const uploadProfilePicture = async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append("profilePicture", file);
-
-      try {
-        const response = await API.post("/user/upload-profile-picture", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        user.value.profilePicture = response.data.profilePicture;
-      } catch (error) {
-        console.error("❌ Error uploading profile picture:", error);
-      }
-    };
-
-    const deleteProfilePicture = async () => {
-      try {
-        await API.delete("/user/delete-profile-picture");
-        user.value.profilePicture = defaultAvatar;
-      } catch (error) {
-        console.error("❌ Error deleting profile picture:", error);
-      }
-    };
-
-    return {
-      user,
-      defaultAvatar,
-      uploadProfilePicture,
-      deleteProfilePicture,
-    };
-  },
+    user.value.profilePicture = response.data.profilePicture;
+  } catch (error) {
+    console.error('❌ Error uploading profile picture:', error);
+  }
 };
-</script>
 
-<style scoped>
+const deleteProfilePicture = async () => {
+  try {
+    await auth.axiosInstance.delete('/user/delete-profile-picture');
+    user.value.profilePicture = defaultAvatar;
+  } catch (error) {
+    console.error('❌ Error deleting profile picture:', error);
+  }
+};
+</script><style scoped>
 .loading-screen {
   text-align: center;
   margin-top: 50px;
