@@ -480,7 +480,7 @@ onMounted(() => {
 }
 
 /* ===== RESPONSIVE: TABLET (2 per row) ===== */
-@media (max-width: 1024px) {
+@media (max-width: 1024px) and (min-width: 769px){
   .carousel-tiles {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -496,7 +496,7 @@ onMounted(() => {
 }
 
 /* ===== RESPONSIVE: MOBILE (1 per row) ===== */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .carousel-tiles {
     display: block;
   }
