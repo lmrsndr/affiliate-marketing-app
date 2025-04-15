@@ -1,57 +1,55 @@
-
 <template>
   <div class="email-2fa-modal">
     <div class="card">
       <h2 class="text-xl font-semibold text-center mb-2">🔐 Enter 2FA Code</h2>
       <p class="text-sm text-center text-gray-600 mb-4">
         We've emailed you a 6-digit verification code.
-      </p>
+      </p><input
+    v-model="code"
+    type="text"
+    maxlength="6"
+    placeholder="Enter 6-digit code"
+    class="input"
+    :disabled="loading"
+    @keyup.enter="verifyCode"
+  />
 
-      <input
-        v-model="code"
-        type="text"
-        maxlength="6"
-        placeholder="Enter 6-digit code"
-        class="input"
-        :disabled="loading"
-        @keyup.enter="verifyCode"
-      />
+  <label class="inline-flex items-center mt-2 mb-4 text-sm text-gray-600">
+    <input type="checkbox" v-model="trustDevice" class="mr-2" />
+    Trust this device for 30 days
+  </label>
 
-      <label class="inline-flex items-center mt-2 mb-4 text-sm text-gray-600">
-        <input type="checkbox" v-model="trustDevice" class="mr-2" />
-        Trust this device for 30 days
-      </label>
+  <div v-if="error" class="error">{{ error }}</div>
+  <div class="attempt">Attempt {{ attempt }} of 5</div>
 
-      <div v-if="error" class="error">{{ error }}</div>
-      <div class="attempt">Attempt {{ attempt }} of 5</div>
-
-      <div class="progress-bar-wrapper" v-if="cooldown > 0">
-        <div class="progress-bar" :style="{ width: cooldownPercent + '%' }"></div>
-      </div>
-
-      <div class="button-group">
-        <button class="btn" @click="verifyCode" :disabled="loading || !code">
-          ✅ Verify
-        </button>
-        <button class="btn secondary" @click="resendCode" :disabled="cooldown > 0 || loading">
-          🔁 Resend <span v-if="cooldown > 0">({{ cooldown }}s)</span>
-        </button>
-      </div>
-
-      <p class="text-xs text-center mt-4 text-gray-500">
-        Want stronger protection? Set up
-        <router-link to="/settings/security" class="text-blue-500 underline">app-based 2FA</router-link>.
-      </p>
-    </div>
+  <div class="progress-bar-wrapper" v-if="cooldown > 0">
+    <div class="progress-bar" :style="{ width: cooldownPercent + '%' }"></div>
   </div>
-</template>
 
-<script setup>
-import { ref, onMounted, computed } from "vue";
-import API from "@/api";
+  <div class="button-group">
+    <button class="btn" @click="verifyCode" :disabled="loading || !code">
+      ✅ Verify
+    </button>
+    <button class="btn secondary" @click="resendCode" :disabled="cooldown > 0 || loading">
+      🔁 Resend <span v-if="cooldown > 0">({{ cooldown }}s)</span>
+    </button>
+  </div>
 
-const emit = defineEmits(["verified"]);
-const code = ref("");
+  <p class="text-xs text-center mt-4 text-gray-500">
+    Want stronger protection? Set up
+    <router-link to="/settings/security" class="text-blue-500 underline">app-based 2FA</router-link>.
+  </p>
+</div>
+
+  </div>
+</template><script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+
+const auth = useAuthStore();
+const emit = defineEmits(['verified']);
+
+const code = ref('');
 const trustDevice = ref(false);
 const error = ref(null);
 const loading = ref(false);
@@ -63,15 +61,15 @@ const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 60) * 100))
 
 const refreshToken = async () => {
   try {
-    await API.get("/auth/refresh", { withCredentials: true });
+    await auth.axiosInstance.get('/auth/refresh');
   } catch (err) {
-    console.error("❌ Token refresh failed:", err);
+    console.error('❌ Token refresh failed:', err);
   }
 };
 
 const verifyCode = async () => {
   if (!code.value || code.value.length !== 6) {
-    error.value = "Please enter a 6-digit code.";
+    error.value = 'Please enter a 6-digit code.';
     return;
   }
 
@@ -80,23 +78,23 @@ const verifyCode = async () => {
 
   try {
     await refreshToken();
-    const { data } = await API.post("/2fa-email/verify", {
+    const { data } = await auth.axiosInstance.post('/2fa-email/verify', {
       code: code.value,
       trustThisDevice: trustDevice.value,
     });
 
-    if (data.message === "2FA verified") {
-      emit("verified");
+    if (data.message === '2FA verified') {
+      emit('verified');
     } else {
-      error.value = data.message || "Unexpected response.";
+      error.value = data.message || 'Unexpected response.';
       attempt.value += 1;
     }
   } catch (err) {
     const msg = err.response?.data?.message;
-    if (msg === "2FA code expired. Please request a new one.") {
+    if (msg === '2FA code expired. Please request a new one.') {
       error.value = "⏰ Your code has expired. Please click 'Resend'.";
     } else {
-      error.value = msg || "Verification failed.";
+      error.value = msg || 'Verification failed.';
     }
     attempt.value += 1;
   } finally {
@@ -107,15 +105,15 @@ const verifyCode = async () => {
 const resendCode = async () => {
   error.value = null;
   loading.value = true;
-  code.value = "";
+  code.value = '';
 
   try {
     await refreshToken();
-    await API.post("/2fa-email/resend", {}, { withCredentials: true });
+    await auth.axiosInstance.post('/2fa-email/resend');
     cooldown.value = 60;
     startCooldown();
   } catch (err) {
-    error.value = err.response?.data?.message || "Failed to resend code";
+    error.value = err.response?.data?.message || 'Failed to resend code';
   } finally {
     loading.value = false;
   }
