@@ -8,8 +8,8 @@
       <router-view />
     </main>
 
-    <!-- ✅ Email 2FA Prompt -->
-    <Email2FAVerify />
+    <!-- ✅ Email 2FA Prompt (conditionally rendered) -->
+    <Email2FAVerify v-if="showEmail2FA" />
 
     <!-- ✅ App-Based 2FA Upgrade Prompt -->
     <Upgrade2FAPrompt />
@@ -17,6 +17,8 @@
 </template>
 
 <script>
+import { useRoute } from "vue-router";
+import { computed } from "vue";
 import Email2FAVerify from "@/components/Email2FAVerify.vue";
 import Upgrade2FAPrompt from "@/components/Upgrade2FAPrompt.vue";
 
@@ -26,8 +28,22 @@ export default {
     Email2FAVerify,
     Upgrade2FAPrompt,
   },
+  setup() {
+    const route = useRoute();
+
+    const showEmail2FA = computed(() => {
+      const excludedRoutes = ["/verify-2fa", "/login", "/register"];
+      const sessionFlag = sessionStorage.getItem("awaiting2FA") === "true";
+      return sessionFlag && !excludedRoutes.includes(route.path);
+    });
+
+    return {
+      showEmail2FA,
+    };
+  },
 };
 </script>
+
 
 <style>
 /* ✅ Global Styles */
