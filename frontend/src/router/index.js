@@ -87,12 +87,11 @@ const router = createRouter({
   routes,
 });
 
-// ✅ Enhanced Route Guard
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
   const isTrusted = document.cookie.includes("trustedDevice=");
 
-  // If route requires auth, check once
+  // 🔄 Always verify auth state if needed
   if (requiresAuth && !isAuthenticated.value) {
     await checkAuthState();
   }
@@ -102,28 +101,30 @@ router.beforeEach(async (to, from, next) => {
     return next("/login");
   }
 
-  // Always refresh 2FA status for protected routes unless trusted
+  // 🔄 Always check 2FA unless trusted
   if (requiresAuth && !is2FAVerified.value && !isTrusted) {
-    await checkAuthState(); // refresh the token (may have just verified)
-
+    await checkAuthState();
     if (!is2FAVerified.value && to.path !== "/verify-2fa") {
       console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
       return next("/verify-2fa");
     }
   }
 
+  // 🔐 Admin-only route but user is not admin
   if (to.meta.requiresAdmin && !isAdmin.value) {
-    console.warn("🔒 Admin only. Redirecting to /dashboard");
-    return next("/dashboard");
+    console.warn("🔒 Admin only. Redirecting to correct dashboard...");
+    return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
   }
 
+  // 🔐 Partner-only route but user is not partner
   if (to.meta.requiresPartner && !isPartner.value) {
-    console.warn("🔒 Partner only. Redirecting to /dashboard");
-    return next("/dashboard");
+    console.warn("🔒 Partner only. Redirecting to correct dashboard...");
+    return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
   }
 
-  next(); // ✅ Allow route
+  next(); // ✅ Allow navigation
 });
+
 
 // ✅ Logout function
 export function logout() {
