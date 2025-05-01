@@ -17,7 +17,7 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * ✅ Send a 6-digit email 2FA code
+ * ✅ Send a 6-digit email 2FA code (with smart reuse & cooldown)
  */
 exports.sendEmail2FACode = async (req, res) => {
   try {
@@ -34,7 +34,9 @@ exports.sendEmail2FACode = async (req, res) => {
 
     const now = Date.now();
     const cooldownMs = 60000; // 60 seconds
+    const expiresInMs = 5 * 60 * 1000; // 5 minutes
 
+    // 🕒 Cooldown check
     if (user.email2FA?.lastSentAt) {
       const timeSinceLastSend = now - new Date(user.email2FA.lastSentAt).getTime();
       if (timeSinceLastSend < cooldownMs) {
@@ -45,21 +47,31 @@ exports.sendEmail2FACode = async (req, res) => {
       }
     }
 
-    // ✅ Generate and hash 6-digit code
-    const rawCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedCode = crypto.createHash("sha256").update(rawCode).digest("hex");
-    console.log(`📬 [2FA Code] ${rawCode} generated for ${user.email}`);
+    let rawCode;
+    const existingCodeValid =
+      user.email2FA &&
+      user.email2FA.code &&
+      new Date(user.email2FA.expiresAt).getTime() > now;
 
-    // ✅ Save code and metadata
-    user.email2FA = {
-      code: hashedCode,
-      expiresAt: new Date(now + 60 * 1000), // 60 seconds
-      verified: false,
-      lastSentAt: new Date(now),
-      failedAttempts: 0,
-      lastFailedAt: null,
-    };
+    if (existingCodeValid) {
+      console.log("♻️ Reusing existing unexpired 2FA code — no regeneration");
+      rawCode = null; // don't email again
+    } else {
+      rawCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const hashedCode = crypto.createHash("sha256").update(rawCode).digest("hex");
 
+      console.log(`📬 [2FA Code] ${rawCode} generated for ${user.email}`);
+
+      user.email2FA = {
+        code: hashedCode,
+        expiresAt: new Date(now + expiresInMs),
+        verified: false,
+        failedAttempts: 0,
+        lastFailedAt: null,
+      };
+    }
+
+    user.email2FA.lastSentAt = new Date(now);
     user.interactions.push({
       action: "2fa_code_sent",
       details: { ip: req.ip, email: user.email },
@@ -68,21 +80,22 @@ exports.sendEmail2FACode = async (req, res) => {
 
     await user.save();
 
-    // ✅ Send the plain code via email
-    await transporter.sendMail({
-      from: `"BundleBee Security" <${process.env.EMAIL_ZOHO}>`,
-      to: user.email,
-      subject: "🔐 Your BundleBee 2FA Code",
-      html: `
-        <p>Hello${user.name ? ` ${user.name}` : ""},</p>
-        <p>Your two-factor authentication code is:</p>
-        <h2 style="color:#007bff;">${rawCode}</h2>
-        <p>This code will expire in 60 seconds.</p>
-        <p>If you did not request this, please secure your account immediately.</p>
-        <hr>
-        <small>This message was sent automatically from BundleBee. Please do not reply.</small>
-      `,
-    });
+    if (rawCode) {
+      await transporter.sendMail({
+        from: `"BundleBee Security" <${process.env.EMAIL_ZOHO}>`,
+        to: user.email,
+        subject: "🔐 Your BundleBee 2FA Code",
+        html: `
+          <p>Hello${user.name ? ` ${user.name}` : ""},</p>
+          <p>Your two-factor authentication code is:</p>
+          <h2 style="color:#007bff;">${rawCode}</h2>
+          <p>This code will expire in 5 minutes.</p>
+          <p>If you did not request this, please secure your account immediately.</p>
+          <hr>
+          <small>This message was sent automatically from BundleBee. Please do not reply.</small>
+        `,
+      });
+    }
 
     return res.status(200).json({ message: "2FA code sent" });
   } catch (err) {
@@ -201,7 +214,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 };
 
 /**
- * 🔁 Resend 2FA Code
+ * 🔁 Resend 2FA Code (uses main sender)
  */
 exports.resendEmail2FACode = async (req, res) => {
   return exports.sendEmail2FACode(req, res);
