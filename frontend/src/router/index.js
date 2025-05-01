@@ -51,7 +51,6 @@ async function checkAuthState() {
       if (response.data.user.email2FA?.verified && !response.data.user.twoFA?.enabled) {
         window.dispatchEvent(new CustomEvent("show-2fa-upgrade-prompt"));
       }
-
     } else {
       throw new Error("Unauthenticated");
     }
@@ -93,6 +92,7 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
   const isTrusted = document.cookie.includes("trustedDevice=");
 
+  // If route requires auth, check once
   if (requiresAuth && !isAuthenticated.value) {
     await checkAuthState();
   }
@@ -102,9 +102,14 @@ router.beforeEach(async (to, from, next) => {
     return next("/login");
   }
 
-  if (requiresAuth && !is2FAVerified.value && !isTrusted && to.path !== "/verify-2fa") {
-    console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
-    return next("/verify-2fa");
+  // Always refresh 2FA status for protected routes unless trusted
+  if (requiresAuth && !is2FAVerified.value && !isTrusted) {
+    await checkAuthState(); // refresh the token (may have just verified)
+
+    if (!is2FAVerified.value && to.path !== "/verify-2fa") {
+      console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
+      return next("/verify-2fa");
+    }
   }
 
   if (to.meta.requiresAdmin && !isAdmin.value) {
