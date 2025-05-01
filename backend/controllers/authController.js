@@ -134,15 +134,27 @@ exports.refreshToken = async (req, res) => {
 exports.authStatus = async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ isAuthenticated: false });
+
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ isAuthenticated: false });
+
+    const twoFAVerified = user.twoFA?.enabled || user.email2FA?.verified || false;
+
     res.json({
       isAuthenticated: true,
+      accessToken: req.accessToken, // optional: attach fresh token if available
       user: {
         id: user._id,
         email: user.email,
         role: user.role,
-        twoFAVerified: user.twoFA?.enabled || user.email2FA?.verified || false
+        twoFAVerified,
+        twoFA: {
+          enabled: user.twoFA?.enabled || false,
+          method: user.twoFA?.enabled ? "app" : (user.email2FA?.verified ? "email" : "none")
+        },
+        email2FA: {
+          verified: user.email2FA?.verified || false
+        }
       }
     });
   } catch (err) {
@@ -150,6 +162,7 @@ exports.authStatus = async (req, res) => {
     res.status(500).json({ message: "Failed to get auth status" });
   }
 };
+
 
 exports.getUserProfile = async (req, res) => {
   try {
