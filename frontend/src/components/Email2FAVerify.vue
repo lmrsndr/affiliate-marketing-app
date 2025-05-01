@@ -86,6 +86,7 @@ const verifyCode = async () => {
     });
 
     if (data.message === "2FA verified") {
+      sessionStorage.removeItem("2faCodeSent");
       emit("verified");
     } else {
       error.value = data.message || "Unexpected response.";
@@ -114,6 +115,7 @@ const resendCode = async () => {
     await API.post("/2fa-email/resend", {}, { withCredentials: true });
     cooldown.value = 60;
     startCooldown();
+    sessionStorage.setItem("2faCodeSent", "true");
   } catch (err) {
     error.value = err.response?.data?.message || "Failed to resend code";
   } finally {
@@ -130,6 +132,10 @@ const startCooldown = () => {
 };
 
 onMounted(() => {
-  resendCode();
+  const alreadySent = sessionStorage.getItem("2faCodeSent");
+  if (!alreadySent) {
+    resendCode();
+  }
 });
 </script>
+
