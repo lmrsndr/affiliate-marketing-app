@@ -1,4 +1,3 @@
-
 <template>
   <div class="email-2fa-modal">
     <div class="card">
@@ -59,7 +58,7 @@ const cooldown = ref(0);
 const attempt = ref(1);
 let interval = null;
 
-const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 60) * 100));
+const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 90) * 100)); // dynamic bar
 
 const refreshToken = async () => {
   try {
@@ -113,11 +112,21 @@ const resendCode = async () => {
   try {
     await refreshToken();
     await API.post("/2fa-email/resend", {}, { withCredentials: true });
-    cooldown.value = 60;
-    startCooldown();
+
+    cooldown.value = 90; // fallback if server doesn’t return cooldown
     sessionStorage.setItem("2faCodeSent", "true");
+    startCooldown();
   } catch (err) {
-    error.value = err.response?.data?.message || "Failed to resend code";
+    const msg = err.response?.data?.message || "Failed to resend code";
+
+    const match = msg.match(/wait\s+(\d+)s?/i);
+    if (match) {
+      const seconds = parseInt(match[1], 10);
+      cooldown.value = seconds;
+      startCooldown();
+    }
+
+    error.value = msg;
   } finally {
     loading.value = false;
   }
@@ -138,4 +147,3 @@ onMounted(() => {
   }
 });
 </script>
-
