@@ -1,4 +1,3 @@
-// routes/authRoutes.js
 const express = require("express");
 const passport = require("passport");
 const jwt = require("jsonwebtoken");
@@ -12,6 +11,7 @@ const {
   forgotUsername,
 } = require("../controllers/authController");
 
+const email2FAController = require("../controllers/email2FAController");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -199,5 +199,10 @@ router.get("/me", async (req, res) => {
     return res.status(401).json({ message: "Invalid token" });
   }
 });
+
+// ✅ Email 2FA Routes (integrates cooldown logic in controller)
+router.post("/2fa-email/send", authMiddleware, email2FAController.sendEmail2FACode);
+router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2FACode);
+router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
 
 module.exports = router;
