@@ -1,4 +1,3 @@
-// controllers/authController.js
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
@@ -11,19 +10,27 @@ const rateLimit = require("express-rate-limit");
 const globalRateLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 20,
-  message: "Too many requests from this IP, please try again later."
+  message: "Too many requests from this IP, please try again later.",
 });
 exports.globalRateLimiter = globalRateLimiter;
 
-function generateTokens(user) {
-  const twoFAVerified = user.email2FA?.verified || user.twoFA?.enabled || false;
-  const accessToken = jwt.sign({
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    twoFAVerified,
-  }, process.env.JWT_SECRET, { expiresIn: "15m" });
-  const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
+function generateTokens(user, session) {
+  const twoFAVerified = session?.awaiting2FA === false;
+  const accessToken = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      twoFAVerified,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  const refreshToken = jwt.sign(
+    { id: user._id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "7d" }
+  );
   return { accessToken, refreshToken };
 }
 
@@ -31,7 +38,15 @@ async function logLoginAttempt(email, ip, status, userId = null) {
   try {
     await User.updateOne(
       { email: email.toLowerCase().trim() },
-      { $push: { interactions: { action: "login_attempt", details: { status, ip }, timestamp: new Date() } } }
+      {
+        $push: {
+          interactions: {
+            action: "login_attempt",
+            details: { status, ip },
+            timestamp: new Date(),
+          },
+        },
+      }
     );
   } catch (err) {
     logger.error("❌ Failed to log login attempt:", err);
@@ -41,21 +56,33 @@ async function logLoginAttempt(email, ip, status, userId = null) {
 exports.registerUser = async (req, res) => {
   const { name, email, password } = req.body;
   try {
-    if (!name || !email || !password) return res.status(400).json({ message: "All fields are required" });
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields are required" });
+
     const cleanEmail = email.trim().toLowerCase();
     const existing = await User.findOne({ email: cleanEmail });
-    if (existing) return res.status(400).json({ message: "User already exists" });
+    if (existing)
+      return res.status(400).json({ message: "User already exists" });
+
     const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ name: name.trim(), email: cleanEmail, password: hashed });
-    const { accessToken, refreshToken } = generateTokens(user);
+    const user = await User.create({
+      name: name.trim(),
+      email: cleanEmail,
+      password: hashed,
+    });
+
+    req.session.awaiting2FA = true;
+
+    const { accessToken, refreshToken } = generateTokens(user, req.session);
     res.cookie("refreshCookie", refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "None",
       domain: ".bundlebee.co.uk",
       path: "/",
-      maxAge: 604800000
+      maxAge: 604800000,
     });
+
     logger.info(`✅ User registered: ${user.email}`);
     res.status(201).json({ accessToken });
   } catch (err) {
@@ -67,22 +94,28 @@ exports.registerUser = async (req, res) => {
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
-    if (!email || !password) return res.status(400).json({ message: "All fields are required" });
+    if (!email || !password)
+      return res.status(400).json({ message: "All fields are required" });
+
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select("+password");
     if (!user || !(await bcrypt.compare(password, user.password))) {
       logger.warn(`❌ Failed login for ${email.trim().toLowerCase()} from ${req.ip}`);
       await logLoginAttempt(email, req.ip, "fail");
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    const { accessToken, refreshToken } = generateTokens(user);
+
+    req.session.awaiting2FA = true;
+
+    const { accessToken, refreshToken } = generateTokens(user, req.session);
     res.cookie("refreshCookie", refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "None",
       domain: ".bundlebee.co.uk",
       path: "/",
-      maxAge: 604800000
+      maxAge: 604800000,
     });
+
     logger.info(`✅ Successful login for ${user.email} from ${req.ip}`);
     await logLoginAttempt(user.email, req.ip, "success", user._id);
     res.status(200).json({ accessToken });
@@ -99,8 +132,9 @@ exports.logoutUser = async (req, res) => {
       secure: true,
       sameSite: "None",
       domain: ".bundlebee.co.uk",
-      path: "/"
+      path: "/",
     });
+    req.session.awaiting2FA = undefined;
     logger.info(`👋 Logout from ${req.ip}`);
     res.status(200).json({ message: "Logged out successfully" });
   } catch {
@@ -115,14 +149,15 @@ exports.refreshToken = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
     if (!user) return res.status(403).json({ message: "Invalid token" });
-    const { accessToken, refreshToken } = generateTokens(user);
+
+    const { accessToken, refreshToken } = generateTokens(user, req.session);
     res.cookie("refreshCookie", refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "None",
       domain: ".bundlebee.co.uk",
       path: "/",
-      maxAge: 604800000
+      maxAge: 604800000,
     });
     res.json({ accessToken });
   } catch (err) {
@@ -138,11 +173,11 @@ exports.authStatus = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ isAuthenticated: false });
 
-    const twoFAVerified = user.twoFA?.enabled || user.email2FA?.verified || false;
+    const twoFAVerified = req.session?.awaiting2FA === false;
 
     res.json({
       isAuthenticated: true,
-      accessToken: req.accessToken, // optional: attach fresh token if available
+      accessToken: req.accessToken,
       user: {
         id: user._id,
         email: user.email,
@@ -162,7 +197,6 @@ exports.authStatus = async (req, res) => {
     res.status(500).json({ message: "Failed to get auth status" });
   }
 };
-
 
 exports.getUserProfile = async (req, res) => {
   try {
@@ -189,7 +223,7 @@ exports.forgotPassword = async (req, res) => {
     await sendEmail({
       to: email,
       subject: "Reset your BundleBee password",
-      html: `<p>Click <a href='${resetUrl}'>here</a> to reset your password. This link expires in 1 hour.</p>`
+      html: `<p>Click <a href='${resetUrl}'>here</a> to reset your password. This link expires in 1 hour.</p>`,
     });
     logger.info(`🔒 Password reset token issued for ${email}`);
     res.status(200).json({ message: "Reset link sent to email" });
@@ -232,7 +266,7 @@ exports.forgotUsername = async (req, res) => {
     await sendEmail({
       to: email,
       subject: "Your Username",
-      html: `<p>Hello, your username is <strong>${user.name}</strong>.</p>`
+      html: `<p>Hello, your username is <strong>${user.name}</strong>.</p>`,
     });
     logger.info(`📧 Username reminder sent to: ${user.email}`);
     res.status(200).json({ message: "Username sent to email" });
