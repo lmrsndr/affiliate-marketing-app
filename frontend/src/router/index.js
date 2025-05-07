@@ -47,7 +47,6 @@ async function checkAuthState() {
 
       console.log("✅ Authenticated:", response.data.user);
 
-      // ✅ Trigger 2FA upgrade UX (optional)
       if (response.data.user.email2FA?.verified && !response.data.user.twoFA?.enabled) {
         window.dispatchEvent(new CustomEvent("show-2fa-upgrade-prompt"));
       }
@@ -91,40 +90,37 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
   const isTrusted = document.cookie.includes("trustedDevice=");
 
-  // 🔄 Always verify auth state if needed
-  if (requiresAuth && !isAuthenticated.value) {
-    await checkAuthState();
-  }
+  if (requiresAuth) {
+    if (!isAuthenticated.value) {
+      await checkAuthState();
+    }
 
-  if (requiresAuth && !isAuthenticated.value) {
-    console.warn("🔒 Not authenticated. Redirecting to /login");
-    return next("/login");
-  }
+    if (!isAuthenticated.value) {
+      console.warn("🔒 Not authenticated. Redirecting to /login");
+      return next("/login");
+    }
 
-  // 🔄 Always check 2FA unless trusted
-  if (requiresAuth && !is2FAVerified.value && !isTrusted) {
-    await checkAuthState();
-    if (!is2FAVerified.value && to.path !== "/verify-2fa") {
-      console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
-      return next("/verify-2fa");
+    if (!is2FAVerified.value && !isTrusted && to.path !== "/verify-2fa") {
+      await checkAuthState();
+      if (!is2FAVerified.value) {
+        console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
+        return next("/verify-2fa");
+      }
+    }
+
+    if (to.meta.requiresAdmin && !isAdmin.value) {
+      console.warn("🔒 Admin only. Redirecting to correct dashboard...");
+      return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
+    }
+
+    if (to.meta.requiresPartner && !isPartner.value) {
+      console.warn("🔒 Partner only. Redirecting to correct dashboard...");
+      return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
     }
   }
 
-  // 🔐 Admin-only route but user is not admin
-  if (to.meta.requiresAdmin && !isAdmin.value) {
-    console.warn("🔒 Admin only. Redirecting to correct dashboard...");
-    return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
-  }
-
-  // 🔐 Partner-only route but user is not partner
-  if (to.meta.requiresPartner && !isPartner.value) {
-    console.warn("🔒 Partner only. Redirecting to correct dashboard...");
-    return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
-  }
-
-  next(); // ✅ Allow navigation
+  next();
 });
-
 
 // ✅ Logout function
 export function logout() {
