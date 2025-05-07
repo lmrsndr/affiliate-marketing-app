@@ -72,7 +72,9 @@ router.get(
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=unauthorized`);
       }
 
-      const twoFAVerified = req.user.email2FA?.verified || req.user.twoFA?.enabled || false;
+      req.session.awaiting2FA = !(req.user.email2FA?.verified || req.user.twoFA?.enabled);
+      const twoFAVerified = req.session.awaiting2FA === false;
+
 
       const accessToken = jwt.sign(
         {
