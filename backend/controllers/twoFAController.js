@@ -1,7 +1,3 @@
-const speakeasy = require("speakeasy");
-const qrcode = require("qrcode");
-const User = require("../models/User");
-
 /**
  * ✅ Generate a new TOTP 2FA secret and QR code
  */
