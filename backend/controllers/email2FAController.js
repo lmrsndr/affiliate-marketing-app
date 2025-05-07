@@ -33,10 +33,9 @@ exports.sendEmail2FACode = async (req, res) => {
     }
 
     const now = Date.now();
-    const cooldownMs = 60000; // 60 seconds
-    const expiresInMs = 5 * 60 * 1000; // 5 minutes
+    const cooldownMs = 60000;
+    const expiresInMs = 5 * 60 * 1000;
 
-    // 🕒 Cooldown check
     if (user.email2FA?.lastSentAt) {
       const timeSinceLastSend = now - new Date(user.email2FA.lastSentAt).getTime();
       if (timeSinceLastSend < cooldownMs) {
@@ -55,7 +54,7 @@ exports.sendEmail2FACode = async (req, res) => {
 
     if (existingCodeValid) {
       console.log("♻️ Reusing existing unexpired 2FA code — no regeneration");
-      rawCode = null; // don't email again
+      rawCode = null;
     } else {
       rawCode = Math.floor(100000 + Math.random() * 900000).toString();
       const hashedCode = crypto.createHash("sha256").update(rawCode).digest("hex");
@@ -105,7 +104,7 @@ exports.sendEmail2FACode = async (req, res) => {
 };
 
 /**
- * ✅ Verify email 2FA code
+ * ✅ Verify email 2FA code + set session flag
  */
 exports.verifyEmail2FACode = async (req, res) => {
   const { code, trustThisDevice } = req.body;
@@ -122,7 +121,6 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     const now = new Date();
 
-    // ❌ Too many failed attempts
     if (user.email2FA.failedAttempts >= 5) {
       const cooldownMs = 15 * 60 * 1000;
       const lastFailed = new Date(user.email2FA.lastFailedAt || 0);
@@ -138,7 +136,6 @@ exports.verifyEmail2FACode = async (req, res) => {
       }
     }
 
-    // ❌ Code expired
     if (user.email2FA.expiresAt < now) {
       return res.status(410).json({ message: "2FA code expired. Please request a new one." });
     }
@@ -154,7 +151,9 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(401).json({ message: "Invalid code (match failed)" });
     }
 
-    // ✅ Verified
+    // ✅ Set session flag
+    req.session.awaiting2FA = false;
+
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
@@ -167,7 +166,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     await user.save();
 
-    // ✅ Issue refreshed access token
+    // ✅ Issue access token
     const accessToken = jwt.sign(
       {
         id: user._id,
@@ -188,7 +187,7 @@ exports.verifyEmail2FACode = async (req, res) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    // ✅ Handle trusted device cookie (optional)
+    // ✅ Trust device cookie
     if (trustThisDevice) {
       const trustToken = jwt.sign(
         { id: user._id, purpose: "trustedDevice" },
@@ -214,7 +213,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 };
 
 /**
- * 🔁 Resend 2FA Code (uses main sender)
+ * 🔁 Resend 2FA Code
  */
 exports.resendEmail2FACode = async (req, res) => {
   return exports.sendEmail2FACode(req, res);
