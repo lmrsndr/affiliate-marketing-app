@@ -122,6 +122,7 @@ router.post("/set-cookie", (req, res) => {
   return res.status(200).json({ message: "✅ Refresh token cookie set" });
 });
 
+
 // ✅ Auth Status Check (used in Vue beforeEach guard)
 router.get("/status", async (req, res) => {
   const token = extractAccessToken(req);
@@ -131,7 +132,7 @@ router.get("/status", async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
-    const isVerified = user?.email2FA?.verified || user?.twoFA?.enabled || false;
+    const isVerified = req.session?.awaiting2FA === false;
 
     return res.json({
       isAuthenticated: true,
@@ -148,6 +149,8 @@ router.get("/status", async (req, res) => {
     return res.json({ isAuthenticated: false });
   }
 });
+
+
 
 // ✅ Get enabled views for user
 router.get("/enabled-views", async (req, res) => {
