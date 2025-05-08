@@ -135,6 +135,8 @@ exports.verifyEmail2FACode = async (req, res) => {
     const storedHash = user.email2FA.code;
     const match = storedHash === submittedHash;
 
+    console.log("🔐 Code Match:", match);
+
     if (!match) {
       user.email2FA.failedAttempts = (user.email2FA.failedAttempts || 0) + 1;
       user.email2FA.lastFailedAt = now;
@@ -143,6 +145,8 @@ exports.verifyEmail2FACode = async (req, res) => {
     }
 
     req.session.awaiting2FA = false;
+    console.log("✅ Session updated: awaiting2FA = false");
+
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
@@ -191,6 +195,8 @@ exports.verifyEmail2FACode = async (req, res) => {
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
     }
+
+    console.log("✅ Verification successful. Access token and (if selected) trusted device cookie set.");
 
     return res.status(200).json({ message: "2FA verified" });
   } catch (err) {
