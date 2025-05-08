@@ -3,9 +3,6 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-/**
- * 📧 Configured Zoho Mail Transporter
- */
 const transporter = nodemailer.createTransport({
   host: "smtp.zoho.eu",
   port: 465,
@@ -16,9 +13,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-/**
- * ✅ Send a 6-digit email 2FA code (with smart reuse & cooldown)
- */
 exports.sendEmail2FACode = async (req, res) => {
   try {
     if (!req.user?._id || !["user", "admin", "partner"].includes(req.user.role)) {
@@ -103,9 +97,6 @@ exports.sendEmail2FACode = async (req, res) => {
   }
 };
 
-/**
- * ✅ Verify email 2FA code + set session flag
- */
 exports.verifyEmail2FACode = async (req, res) => {
   const { code, trustThisDevice } = req.body;
 
@@ -151,9 +142,7 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(401).json({ message: "Invalid code (match failed)" });
     }
 
-    // ✅ Set session flag
     req.session.awaiting2FA = false;
-
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
@@ -166,7 +155,6 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     await user.save();
 
-    // ✅ Issue access token
     const accessToken = jwt.sign(
       {
         id: user._id,
@@ -187,7 +175,6 @@ exports.verifyEmail2FACode = async (req, res) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    // ✅ Trust device cookie
     if (trustThisDevice) {
       const trustToken = jwt.sign(
         { id: user._id, purpose: "trustedDevice" },
@@ -212,9 +199,6 @@ exports.verifyEmail2FACode = async (req, res) => {
   }
 };
 
-/**
- * 🔁 Resend 2FA Code
- */
 exports.resendEmail2FACode = async (req, res) => {
   return exports.sendEmail2FACode(req, res);
 };
