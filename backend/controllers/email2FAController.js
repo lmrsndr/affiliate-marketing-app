@@ -146,6 +146,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     req.session.awaiting2FA = false;
     console.log("✅ Session updated: awaiting2FA = false");
+    console.log("📥 Session at /verifyEmail2FACode:", req.session);
 
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
