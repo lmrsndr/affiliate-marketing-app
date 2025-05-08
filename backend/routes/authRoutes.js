@@ -9,6 +9,8 @@ const {
   getUserProfile,
   resetPassword,
   forgotUsername,
+  generateTokens,
+  isTrustedDevice,
 } = require("../controllers/authController");
 
 const email2FAController = require("../controllers/email2FAController");
@@ -60,11 +62,12 @@ router.get(
   })
 );
 
-// ✅ Google OAuth Callback (Option 1 – pass tokens via URL)
+// ✅ Google OAuth Callback with Trusted Device + 2FA Logic
 router.get(
   "/google/callback",
   passport.authenticate("google", {
     failureRedirect: `${process.env.FRONTEND_URL}/login?error=OAuthFailed`,
+    session: false,
   }),
   async (req, res) => {
     try {
@@ -72,28 +75,25 @@ router.get(
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=unauthorized`);
       }
 
-      // ✅ Session-based 2FA tracking
-      req.session.awaiting2FA = !(req.user.email2FA?.verified || req.user.twoFA?.enabled);
-      const twoFAVerified = req.session.awaiting2FA === false;
+      // 🔐 Check if device is trusted
+      const trusted = isTrustedDevice(req);
+      req.session.awaiting2FA = !trusted;
 
-      const accessToken = jwt.sign(
-        {
-          id: req.user._id,
-          email: req.user.email,
-          role: req.user.role,
-          twoFAVerified,
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: "15m" }
-      );
+      // ✅ Generate tokens
+      const { accessToken, refreshToken } = generateTokens(req.user, req.session);
 
-      const refreshToken = jwt.sign(
-        { id: req.user._id },
-        process.env.JWT_REFRESH_SECRET,
-        { expiresIn: "7d" }
-      );
+      // ✅ Set refresh token in secure cookie
+      res.cookie("refreshCookie", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        domain: ".bundlebee.co.uk",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
 
-      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`;
+      // ✅ Redirect with access token
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}`;
       return res.redirect(redirectUrl);
     } catch (err) {
       console.error("❌ OAuth Callback Error:", err);
