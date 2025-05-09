@@ -58,7 +58,7 @@ const cooldown = ref(0);
 const attempt = ref(1);
 let interval = null;
 
-const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 90) * 100)); // dynamic bar
+const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 60) * 100));
 
 const refreshToken = async () => {
   try {
@@ -85,6 +85,13 @@ const verifyCode = async () => {
     });
 
     if (data.message === "2FA verified") {
+      const refreshed = await API.get("/auth/status", { withCredentials: true });
+      const token = refreshed.data.accessToken;
+      if (token) {
+        sessionStorage.setItem("accessToken", token);
+        API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      }
+
       sessionStorage.removeItem("2faCodeSent");
       emit("verified");
     } else {
@@ -112,21 +119,11 @@ const resendCode = async () => {
   try {
     await refreshToken();
     await API.post("/2fa-email/resend", {}, { withCredentials: true });
-
-    cooldown.value = 90; // fallback if server doesn’t return cooldown
-    sessionStorage.setItem("2faCodeSent", "true");
+    cooldown.value = 60;
     startCooldown();
+    sessionStorage.setItem("2faCodeSent", "true");
   } catch (err) {
-    const msg = err.response?.data?.message || "Failed to resend code";
-
-    const match = msg.match(/wait\s+(\d+)s?/i);
-    if (match) {
-      const seconds = parseInt(match[1], 10);
-      cooldown.value = seconds;
-      startCooldown();
-    }
-
-    error.value = msg;
+    error.value = err.response?.data?.message || "Failed to resend code";
   } finally {
     loading.value = false;
   }
@@ -147,3 +144,70 @@ onMounted(() => {
   }
 });
 </script>
+
+<style scoped>
+.email-2fa-modal {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+.card {
+  max-width: 400px;
+  width: 100%;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+.input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+  text-align: center;
+  letter-spacing: 0.15em;
+}
+.btn {
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  color: white;
+  font-weight: bold;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.btn.secondary {
+  background-color: #6b7280;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.progress-bar-wrapper {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.progress-bar {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 1s linear;
+}
+.error {
+  color: red;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+.attempt {
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #6b7280;
+}
+</style>
