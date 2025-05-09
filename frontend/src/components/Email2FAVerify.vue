@@ -36,11 +36,6 @@
           🔁 Resend <span v-if="cooldown > 0">({{ cooldown }}s)</span>
         </button>
       </div>
-
-      <p class="text-xs text-center mt-4 text-gray-500">
-        Want stronger protection? Set up
-        <router-link to="/settings/security" class="text-blue-500 underline">app-based 2FA</router-link>.
-      </p>
     </div>
   </div>
 </template>
