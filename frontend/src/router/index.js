@@ -89,6 +89,7 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
   const isTrusted = document.cookie.includes("trustedDevice=");
+  const hasTwoFACookie = document.cookie.includes("twoFACookie=true");
 
   if (requiresAuth) {
     if (!isAuthenticated.value) {
@@ -100,12 +101,18 @@ router.beforeEach(async (to, from, next) => {
       return next("/login");
     }
 
-    if (!is2FAVerified.value && !isTrusted && to.path !== "/verify-2fa") {
-      await checkAuthState();
-      if (!is2FAVerified.value) {
-        console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
-        return next("/verify-2fa");
-      }
+    const needs2FA = !is2FAVerified.value && !isTrusted && !hasTwoFACookie;
+
+    if (needs2FA && to.path !== "/verify-2fa") {
+      console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
+      return next("/verify-2fa");
+    }
+
+    if (!needs2FA && to.path === "/verify-2fa") {
+      console.warn("✅ 2FA complete. Redirecting to dashboard...");
+      if (isAdmin.value) return next("/admin-dashboard");
+      if (isPartner.value) return next("/partner-dashboard");
+      return next("/dashboard");
     }
 
     if (to.meta.requiresAdmin && !isAdmin.value) {
