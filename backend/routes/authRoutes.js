@@ -210,5 +210,9 @@ router.get("/me", async (req, res) => {
 router.post("/2fa-email/send", authMiddleware, email2FAController.sendEmail2FACode);
 router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2FACode);
 router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
+// ✅ App-based TOTP 2FA (e.g. Google Authenticator)
+router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
+router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
+
 
 module.exports = router;
