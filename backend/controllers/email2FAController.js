@@ -193,10 +193,27 @@ exports.verifyEmail2FACode = async (req, res) => {
     }
 
     // ✅ Return access token to frontend
-    return res.status(200).json({
-      message: "2FA verified",
-      accessToken,
-    });
+    const accessToken = jwt.sign(
+  {
+    id: user._id,
+    email: user.email,
+    role: user.role,
+    twoFAVerified: true,
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: "15m" }
+);
+
+res.cookie("authCookie", accessToken, {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  domain: ".bundlebee.co.uk",
+  path: "/",
+  maxAge: 15 * 60 * 1000,
+});
+
+return res.status(200).json({ message: "2FA verified", accessToken });
 
   } catch (err) {
     console.error("❌ 2FA verification failed:", err);
