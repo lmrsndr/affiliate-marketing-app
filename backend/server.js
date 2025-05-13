@@ -220,6 +220,8 @@ app.use("/api/partner", require("./routes/partnerRoutes"));
 app.use("/api/2fa-email", require("./routes/email2FARoutes"));
 app.use("/api/2fa", require("./routes/twoFARoutes"));
 app.use("/api/accounting", require("./routes/accountingRoutes"));
+app.use("/api/2fa-app", require("./routes/totpRoutes"));
+
 
 // ✅ 404 Handler
 app.use((req, res) => res.status(404).json({ msg: "API route not found" }));
