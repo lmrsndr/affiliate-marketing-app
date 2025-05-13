@@ -79,14 +79,9 @@ const verifyCode = async () => {
       trustThisDevice: trustDevice.value,
     });
 
-    if (data.message === "2FA verified") {
-      const refreshed = await API.get("/auth/status", { withCredentials: true });
-      const token = refreshed.data.accessToken;
-      if (token) {
-        sessionStorage.setItem("accessToken", token);
-        API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      }
-
+    if (data.accessToken) {
+      sessionStorage.setItem("accessToken", data.accessToken);
+      API.defaults.headers.common["Authorization"] = `Bearer ${data.accessToken}`;
       sessionStorage.removeItem("2faCodeSent");
       emit("verified");
     } else {
