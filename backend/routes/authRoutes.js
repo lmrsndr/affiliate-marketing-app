@@ -14,6 +14,7 @@ const {
 } = require("../controllers/authController");
 
 const email2FAController = require("../controllers/email2FAController");
+const totpController = require("../controllers/totpController");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 
