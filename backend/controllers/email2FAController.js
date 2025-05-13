@@ -144,10 +144,12 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(401).json({ message: "Invalid code (match failed)" });
     }
 
+    // ✅ Set session flags
     req.session.awaiting2FA = false;
-    console.log("✅ Session updated: awaiting2FA = false");
-    console.log("📥 Session at /verifyEmail2FACode:", req.session);
+    req.session.twoFAVerified = true;
+    console.log("✅ Session updated: 2FA passed");
 
+    // ✅ Mark user verified
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
@@ -160,6 +162,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     await user.save();
 
+    // ✅ Generate new access token
     const accessToken = jwt.sign(
       {
         id: user._id,
@@ -171,15 +174,7 @@ exports.verifyEmail2FACode = async (req, res) => {
       { expiresIn: "15m" }
     );
 
-    res.cookie("authCookie", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      domain: ".bundlebee.co.uk",
-      path: "/",
-      maxAge: 15 * 60 * 1000,
-    });
-
+    // ✅ Optionally trust device
     if (trustThisDevice) {
       const trustToken = jwt.sign(
         { id: user._id, purpose: "trustedDevice" },
@@ -197,9 +192,12 @@ exports.verifyEmail2FACode = async (req, res) => {
       });
     }
 
-    console.log("✅ Verification successful. Access token and (if selected) trusted device cookie set.");
+    // ✅ Return access token to frontend
+    return res.status(200).json({
+      message: "2FA verified",
+      accessToken,
+    });
 
-    return res.status(200).json({ message: "2FA verified" });
   } catch (err) {
     console.error("❌ 2FA verification failed:", err);
     return res.status(500).json({ message: "2FA verification failed" });
