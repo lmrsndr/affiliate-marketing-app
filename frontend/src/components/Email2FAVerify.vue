@@ -17,9 +17,10 @@
       />
 
       <label class="inline-flex items-center mt-2 mb-4 text-sm text-gray-600">
-        <input type="checkbox" v-model="trustDevice" class="mr-2" />
-        Trust this device for 30 days
-      </label>
+  <input type="checkbox" v-model="trustDevice" class="mr-2" />
+  Don’t ask again for 30 days on this device
+</label>
+
 
       <div v-if="error" class="error">{{ error }}</div>
       <div class="attempt">Attempt {{ attempt }} of 5</div>
