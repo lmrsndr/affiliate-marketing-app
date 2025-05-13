@@ -103,6 +103,16 @@ exports.verifyEmail2FACode = async (req, res) => {
       });
     }
 
+    // ✅ Set frontend-readable 2FA cookie for UI logic
+    res.cookie("twoFACookie", true, {
+      httpOnly: false,
+      secure: true,
+      sameSite: "None",
+      domain: ".bundlebee.co.uk",
+      path: "/",
+      maxAge: 30 * 60 * 1000,
+    });
+
     return res.status(200).json({ message: "2FA verified", accessToken });
 
   } catch (err) {
