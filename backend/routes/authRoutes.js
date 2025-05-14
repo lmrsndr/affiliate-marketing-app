@@ -1,6 +1,7 @@
 const express = require("express");
 const passport = require("passport");
 const jwt = require("jsonwebtoken");
+
 const {
   registerUser,
   loginUser,
@@ -11,6 +12,7 @@ const {
   forgotUsername,
   generateTokens,
   isTrustedDevice,
+  trustThisDevice, // ✅ NEW: Added trustThisDevice import
 } = require("../controllers/authController");
 
 const email2FAController = require("../controllers/email2FAController");
@@ -123,6 +125,8 @@ router.post("/set-cookie", (req, res) => {
   return res.status(200).json({ message: "✅ Refresh token cookie set" });
 });
 
+// ✅ Trust this device (sets 30-day cookie)
+router.post("/trust-device", authMiddleware, trustThisDevice); // ✅ NEW ROUTE
 
 // ✅ Auth Status Check (used in Vue beforeEach guard)
 router.get("/status", async (req, res) => {
@@ -150,8 +154,6 @@ router.get("/status", async (req, res) => {
     return res.json({ isAuthenticated: false });
   }
 });
-
-
 
 // ✅ Get enabled views for user
 router.get("/enabled-views", async (req, res) => {
@@ -206,13 +208,13 @@ router.get("/me", async (req, res) => {
   }
 });
 
-// ✅ Email 2FA Routes (integrates cooldown logic in controller)
+// ✅ Email 2FA Routes
 router.post("/2fa-email/send", authMiddleware, email2FAController.sendEmail2FACode);
 router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2FACode);
 router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
-// ✅ App-based TOTP 2FA (e.g. Google Authenticator)
+
+// ✅ App-based TOTP 2FA Routes
 router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
 router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
-
 
 module.exports = router;
