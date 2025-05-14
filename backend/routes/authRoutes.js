@@ -214,7 +214,7 @@ router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2
 router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
 
 // ✅ App-based TOTP 2FA Routes
-router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
-router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
+//router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
+//router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
 
 module.exports = router;
