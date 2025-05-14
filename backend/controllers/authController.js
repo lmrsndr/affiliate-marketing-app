@@ -289,3 +289,4 @@ exports.forgotUsername = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+// ensure deploy includes trustThisDevice
