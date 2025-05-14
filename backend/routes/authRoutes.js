@@ -12,7 +12,7 @@ const {
   forgotUsername,
   generateTokens,
   isTrustedDevice,
-  trustThisDevice, // ✅ NEW: Added trustThisDevice import
+  trustThisDevice, // ✅ Ensured: trustThisDevice is imported correctly
 } = require("../controllers/authController");
 
 const email2FAController = require("../controllers/email2FAController");
@@ -126,7 +126,7 @@ router.post("/set-cookie", (req, res) => {
 });
 
 // ✅ Trust this device (sets 30-day cookie)
-router.post("/trust-device", authMiddleware, trustThisDevice); // ✅ NEW ROUTE
+router.post("/trust-device", authMiddleware, trustThisDevice); // ✅ Now correctly linked
 
 // ✅ Auth Status Check (used in Vue beforeEach guard)
 router.get("/status", async (req, res) => {
