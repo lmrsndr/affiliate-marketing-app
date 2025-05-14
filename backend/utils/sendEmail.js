@@ -1,22 +1,22 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async ({ to, subject, html }) => {
-  if (!process.env.ZOHO_EMAIL || !process.env.ZOHO_PASSWORD) {
-    throw new Error("Missing ZOHO_EMAIL or ZOHO_PASSWORD in .env");
+  if (!process.env.EMAIL_ZOHO || !process.env.EMAIL_USER) {
+    throw new Error("Missing EMAIL_ZOHO or EMAIL_USER in .env");
   }
 
   const transporter = nodemailer.createTransport({
-    host: "smtp.zoho.eu", // use .eu, .com, or .in depending on your domain region
+    host: "smtp.zoho.eu", // Confirm your Zoho region
     port: 465,
-    secure: true,
+    secure: process.env.EMAIL_SECURE === "true",
     auth: {
-      user: process.env.ZOHO_EMAIL,
-      pass: process.env.ZOHO_PASSWORD, // App-specific password if 2FA is enabled
+      user: process.env.EMAIL_ZOHO,
+      pass: process.env.EMAIL_USER, // App-specific password if 2FA is enabled
     },
   });
 
   const mailOptions = {
-    from: `"BundleBee 🔐" <${process.env.ZOHO_EMAIL}>`,
+    from: `"BundleBee 🔐" <${process.env.EMAIL_ZOHO}>`,
     to,
     subject,
     html,
