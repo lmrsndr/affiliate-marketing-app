@@ -17,10 +17,9 @@
       />
 
       <label class="inline-flex items-center mt-2 mb-4 text-sm text-gray-600">
-  <input type="checkbox" v-model="trustDevice" class="mr-2" />
-  Don’t ask again for 30 days on this device
-</label>
-
+        <input type="checkbox" v-model="trustDevice" class="mr-2" />
+        Don’t ask again for 30 days on this device
+      </label>
 
       <div v-if="error" class="error">{{ error }}</div>
       <div class="attempt">Attempt {{ attempt }} of 5</div>
@@ -75,10 +74,17 @@ const verifyCode = async () => {
 
   try {
     await refreshToken();
-    const { data } = await API.post("/2fa-email/verify", {
-      code: code.value,
-      trustThisDevice: trustDevice.value,
-    });
+
+    const { data } = await API.post(
+      "/2fa-email/verify",
+      { code: code.value },
+      { withCredentials: true }
+    );
+
+    // If user chose to trust the device, set the cookie
+    if (trustDevice.value) {
+      await API.post("/auth/trust-device", null, { withCredentials: true });
+    }
 
     if (data.accessToken) {
       sessionStorage.setItem("accessToken", data.accessToken);
