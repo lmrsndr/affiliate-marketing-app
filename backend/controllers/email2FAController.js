@@ -1,3 +1,41 @@
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const sendEmail = require("../utils/sendEmail");
+
+// ✅ Send Email 2FA Code
+exports.sendEmail2FACode = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashed = crypto.createHash("sha256").update(code).digest("hex");
+
+    user.email2FA = {
+      code: hashed,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 min
+      verified: false,
+      failedAttempts: 0,
+      lastFailedAt: null,
+    };
+
+    await user.save();
+
+    await sendEmail({
+      to: user.email,
+      subject: "Your BundleBee 2FA Code",
+      html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+    });
+
+    return res.status(200).json({ message: "2FA code sent to your email." });
+  } catch (err) {
+    console.error("❌ Failed to send 2FA email:", err);
+    return res.status(500).json({ message: "Failed to send 2FA code." });
+  }
+};
+
+// ✅ Verify 2FA Email Code (your original logic, unchanged)
 exports.verifyEmail2FACode = async (req, res) => {
   const { code, trustThisDevice } = req.body;
 
@@ -118,5 +156,16 @@ exports.verifyEmail2FACode = async (req, res) => {
   } catch (err) {
     console.error("❌ 2FA verification failed:", err);
     return res.status(500).json({ message: "2FA verification failed" });
+  }
+};
+
+// ✅ Resend Email 2FA Code (reuses send logic)
+exports.resendEmail2FACode = async (req, res) => {
+  try {
+    req.user = await User.findById(req.user._id);
+    return exports.sendEmail2FACode(req, res);
+  } catch (err) {
+    console.error("❌ Failed to resend 2FA email:", err);
+    return res.status(500).json({ message: "Failed to resend 2FA code." });
   }
 };
