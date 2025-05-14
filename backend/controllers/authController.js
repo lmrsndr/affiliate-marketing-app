@@ -1,5 +1,3 @@
-// ✅ Inside authController.js — complete revised version with trusted device + 2FA session support
-
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
@@ -28,6 +26,7 @@ function generateTokens(user, session) {
   const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: "7d" });
   return { accessToken, refreshToken };
 }
+exports.generateTokens = generateTokens;
 
 // ✅ Utility to verify trusted device cookie
 function isTrustedDevice(req) {
@@ -40,6 +39,32 @@ function isTrustedDevice(req) {
     return false;
   }
 }
+exports.isTrustedDevice = isTrustedDevice;
+
+// ✅ Set Trusted Device Cookie
+exports.trustThisDevice = async (req, res) => {
+  try {
+    const token = jwt.sign(
+      { id: req.user.id, purpose: "trustedDevice" },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    res.cookie("trustedDevice", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      domain: ".bundlebee.co.uk",
+      path: "/",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.status(200).json({ message: "✅ Trusted device cookie set" });
+  } catch (err) {
+    console.error("❌ Failed to set trusted device cookie:", err);
+    res.status(500).json({ message: "Failed to set trusted device" });
+  }
+};
 
 async function logLoginAttempt(email, ip, status, userId = null) {
   try {
