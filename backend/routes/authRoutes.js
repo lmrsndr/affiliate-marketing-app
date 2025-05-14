@@ -22,6 +22,14 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+console.log("🔍 typeof trustThisDevice:", typeof trustThisDevice);
+console.log("🔍 typeof email2FAController.sendEmail2FACode:", typeof email2FAController.sendEmail2FACode);
+console.log("🔍 typeof email2FAController.verifyEmail2FACode:", typeof email2FAController.verifyEmail2FACode);
+console.log("🔍 typeof email2FAController.resendEmail2FACode:", typeof email2FAController.resendEmail2FACode);
+console.log("🔍 typeof totpController.verifyTOTP:", typeof totpController.verifyTOTP);
+
+
+
 // ✅ Utility to extract token from headers or cookies
 function extractAccessToken(req) {
   let token = req.cookies.authCookie;
