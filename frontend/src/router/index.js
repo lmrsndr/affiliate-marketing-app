@@ -29,6 +29,12 @@ const isAdmin = ref(false);
 const isPartner = ref(false);
 const is2FAVerified = ref(false);
 
+// ✅ Cookie utils
+function getCookieValue(name) {
+  const match = document.cookie.match(new RegExp(`${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // ✅ Auth check from /auth/status
 async function checkAuthState() {
   try {
@@ -66,8 +72,8 @@ async function checkAuthState() {
 
 // ✅ Routes
 const routes = [
-  { path: "/", component: HomeView, meta: { requiresAuth: false } },
-  { path: "/partner/:id", component: PartnerDetails, meta: { requiresAuth: false } },
+  { path: "/", component: HomeView },
+  { path: "/partner/:id", component: PartnerDetails },
   { path: "/questionnaire", component: SubscriptionQuestionnaire, meta: { requiresAuth: true } },
   { path: "/results", component: SubscriptionResults, meta: { requiresAuth: true } },
   { path: "/dashboard", component: UserDashboard, meta: { requiresAuth: true } },
@@ -75,8 +81,8 @@ const routes = [
   { path: "/partner-dashboard", component: PartnerDashboard, meta: { requiresAuth: true, requiresPartner: true } },
   { path: "/manage-affiliates", component: AffiliatePartners, meta: { requiresAuth: true } },
   { path: "/admin/accounting", component: AdminAccounting, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: "/login", component: AdminLogin, meta: { requiresAuth: false } },
-  { path: "/auth/callback", component: OAuthCallback, meta: { requiresAuth: false } },
+  { path: "/login", component: AdminLogin },
+  { path: "/auth/callback", component: OAuthCallback },
   { path: "/verify-2fa", component: Verify2FA, meta: { requiresAuth: true } },
 ];
 
@@ -88,42 +94,43 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
-  const isTrusted = document.cookie.includes("trustedDevice=");
-  const hasTwoFACookie = document.cookie.includes("twoFACookie=true");
 
-  if (requiresAuth) {
-    if (!isAuthenticated.value) {
-      await checkAuthState();
-    }
+  // Sync 2FA status from cookie (in case app was reloaded)
+  const trustedDevice = getCookieValue("trustedDevice");
+  const twoFACookie = getCookieValue("twoFACookie");
+  if (twoFACookie === "true" || trustedDevice) {
+    is2FAVerified.value = true;
+  }
 
-    if (!isAuthenticated.value) {
-      console.warn("🔒 Not authenticated. Redirecting to /login");
-      return next("/login");
-    }
+  if (requiresAuth && !isAuthenticated.value) {
+    await checkAuthState();
+  }
 
-    const needs2FA = !is2FAVerified.value && !isTrusted && !hasTwoFACookie;
+  if (requiresAuth && !isAuthenticated.value) {
+    console.warn("🔒 Not authenticated. Redirecting to /login");
+    return next("/login");
+  }
 
-    if (needs2FA && to.path !== "/verify-2fa") {
-      console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
-      return next("/verify-2fa");
-    }
+  const needs2FA = !is2FAVerified.value;
 
-    if (!needs2FA && to.path === "/verify-2fa") {
-      console.warn("✅ 2FA complete. Redirecting to dashboard...");
-      if (isAdmin.value) return next("/admin-dashboard");
-      if (isPartner.value) return next("/partner-dashboard");
-      return next("/dashboard");
-    }
+  if (needs2FA && to.path !== "/verify-2fa") {
+    console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
+    return next("/verify-2fa");
+  }
 
-    if (to.meta.requiresAdmin && !isAdmin.value) {
-      console.warn("🔒 Admin only. Redirecting to correct dashboard...");
-      return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
-    }
+  if (!needs2FA && to.path === "/verify-2fa") {
+    console.warn("✅ 2FA complete. Redirecting to dashboard...");
+    if (isAdmin.value) return next("/admin-dashboard");
+    if (isPartner.value) return next("/partner-dashboard");
+    return next("/dashboard");
+  }
 
-    if (to.meta.requiresPartner && !isPartner.value) {
-      console.warn("🔒 Partner only. Redirecting to correct dashboard...");
-      return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
-    }
+  if (to.meta.requiresAdmin && !isAdmin.value) {
+    return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
+  }
+
+  if (to.meta.requiresPartner && !isPartner.value) {
+    return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
   }
 
   next();
