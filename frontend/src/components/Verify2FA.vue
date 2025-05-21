@@ -17,13 +17,15 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useTwoFAStore } from '@/stores/useTwoFAStore'; // ✅ NEW
 import API from '@/api';
 import Email2FAVerify from '@/components/Email2FAVerify.vue';
 
 const router = useRouter();
+const twoFAStore = useTwoFAStore(); // ✅ Store instance
 const showModal = ref(false);
 
-onMounted(async () => {
+onMounted(() => {
   const awaiting2FA = sessionStorage.getItem("awaiting2FA");
   if (awaiting2FA === "true") {
     showModal.value = true;
@@ -33,11 +35,17 @@ onMounted(async () => {
 const handleVerified = async () => {
   try {
     const { data } = await API.get('/auth/status');
+
+    // ✅ Sync access token
     sessionStorage.removeItem("awaiting2FA");
     sessionStorage.setItem("accessToken", data.accessToken);
     localStorage.setItem("accessToken", data.accessToken);
     API.defaults.headers.common["Authorization"] = `Bearer ${data.accessToken}`;
 
+    // ✅ Set 2FA verified in store
+    twoFAStore.setVerified(true);
+
+    // ✅ Route by role
     const role = data.user.role;
     if (role === "admin") router.push("/admin-dashboard");
     else if (role === "partner") router.push("/partner-dashboard");
