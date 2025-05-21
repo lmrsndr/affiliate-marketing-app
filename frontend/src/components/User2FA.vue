@@ -64,6 +64,9 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import API from "@/api";
+import { useTwoFAStore } from "@/stores/useTwoFAStore";
+
+const twoFAStore = useTwoFAStore();
 
 const twoFA = ref({ enabled: false });
 const qrCodeUrl = ref("");
@@ -114,6 +117,9 @@ const load2FAStatus = async () => {
   try {
     const { data } = await API.get("/2fa/status");
     twoFA.value = data;
+
+    // ✅ Keep store in sync
+    twoFAStore.setVerified(data.enabled === true);
   } catch (err) {
     console.error("❌ Failed to load 2FA status:", err);
   }
@@ -143,6 +149,7 @@ const verifyApp2FA = async () => {
       showSetup.value = false;
       totpCode.value = "";
       backupCodes.value = data.backupCodes || [];
+      twoFAStore.setVerified(true); // ✅ Confirm store is updated
       clearInterval(countdownInterval);
     } else {
       error.value = "Invalid code. Please try again.";
@@ -170,6 +177,7 @@ const disableApp2FA = async () => {
     totpCode.value = "";
     showSetup.value = false;
     backupCodes.value = [];
+    twoFAStore.reset(); // ✅ Reset store
     clearInterval(countdownInterval);
   } catch (err) {
     error.value = err.response?.data?.error || "Failed to disable app-based 2FA.";
@@ -240,13 +248,3 @@ onMounted(() => {
   padding: 0;
   margin: 0;
 }
-.backup-codes li {
-  font-family: monospace;
-  background: #f9fafb;
-  padding: 0.5rem;
-  border: 1px dashed #ddd;
-  margin-bottom: 4px;
-  border-radius: 4px;
-}
-</style>
-
