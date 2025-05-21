@@ -5,10 +5,10 @@ if (!import.meta.env.VITE_API_URL) console.warn("⚠️ Missing VITE_API_URL in 
 if (!import.meta.env.VITE_GOOGLE_AUTH_URL) console.warn("⚠️ Missing VITE_GOOGLE_AUTH_URL in environment variables!");
 if (!import.meta.env.VITE_GOOGLE_REDIRECT_URI) console.warn("⚠️ Missing VITE_GOOGLE_REDIRECT_URI in environment variables!");
 
-// ✅ Normalize API Base URL (remove trailing slashes)
+// ✅ Normalize API Base URL
 const safeBaseURL = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk").replace(/\/+$/, "");
 
-// ✅ Axios Instance with Cross-Origin Cookie Support
+// ✅ Create Axios Instance
 const API = axios.create({
   baseURL: safeBaseURL,
   withCredentials: true,
@@ -16,7 +16,7 @@ const API = axios.create({
 
 export default API;
 
-// ✅ Attach Authorization Header to All Requests
+// ✅ Attach Authorization Header Automatically
 API.interceptors.request.use(
   (config) => {
     const token = sessionStorage.getItem("accessToken") || localStorage.getItem("accessToken");
@@ -33,7 +33,7 @@ API.interceptors.request.use(
   }
 );
 
-// ✅ Unified 401/403 Handler
+// ✅ Global Response Interceptor for 401 / 403
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -41,21 +41,19 @@ API.interceptors.response.use(
     const reason = error.response?.data?.reason;
     const originalRequest = error.config;
 
-    // ✅ Handle 403 for 2FA setup
+    // ✅ Redirect to setup page if TOTP required
     if (status === 403 && reason === "TOTP_REQUIRED") {
       console.warn("⛔ Redirecting to /setup-2fa due to missing TOTP");
       window.location.href = "/setup-2fa";
       return;
     }
 
-    // ✅ Handle 401: Attempt Refresh (if not already tried)
+    // ✅ Attempt refresh token on 401 (only once)
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        const { data } = await axios.get(`${safeBaseURL}/auth/refresh`, {
-          withCredentials: true,
-        });
+        const { data } = await axios.get(`${safeBaseURL}/auth/refresh`, { withCredentials: true });
 
         sessionStorage.setItem("accessToken", data.accessToken);
         localStorage.setItem("accessToken", data.accessToken);
@@ -67,11 +65,11 @@ API.interceptors.response.use(
         sessionStorage.removeItem("accessToken");
         localStorage.removeItem("accessToken");
 
-        const isPublicRoute = ["/", "/login", "/register"].includes(window.location.pathname);
+        const isPublic = ["/", "/login", "/register"].includes(window.location.pathname);
 
-        if (!isPublicRoute) {
+        if (!isPublic) {
           alert("⚠️ Your session has expired. Please log in again.");
-          window.location.href = "/login";
+          window.location.href = "/login?reason=session-expired";
         }
       }
     }
@@ -193,14 +191,14 @@ export const replyToComment = async ({ commentId, reply }) => {
 // ✅ Promotions
 export const uploadPromoImage = async (formData) => {
   const res = await API.post("/partner/promo/image", formData, {
-    headers: { "Content-Type": "multipart/form-data" }
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data;
 };
 
 export const uploadPromoVideo = async (formData) => {
   const res = await API.post("/partner/promo/video", formData, {
-    headers: { "Content-Type": "multipart/form-data" }
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data;
 };
