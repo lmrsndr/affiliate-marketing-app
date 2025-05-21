@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { ref } from "vue";
 import axios from "axios";
+import { useTwoFAStore } from "@/stores/useTwoFAStore"; // ✅ NEW: Import 2FA Pinia store
 
 // ✅ Views
 import HomeView from "../views/HomeView.vue";
@@ -27,13 +28,6 @@ const axiosInstance = axios.create({
 const isAuthenticated = ref(false);
 const isAdmin = ref(false);
 const isPartner = ref(false);
-const is2FAVerified = ref(false);
-
-// ✅ Cookie utils
-function getCookieValue(name) {
-  const match = document.cookie.match(new RegExp(`${name}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
 
 // ✅ Auth check from /auth/status
 async function checkAuthState() {
@@ -44,7 +38,10 @@ async function checkAuthState() {
       isAuthenticated.value = true;
       isAdmin.value = response.data.user.role === "admin";
       isPartner.value = response.data.user.role === "partner";
-      is2FAVerified.value = response.data.user.twoFAVerified === true;
+
+      // ✅ Optional: backend truth for 2FA (fallback for rare cases)
+      const twoFAStore = useTwoFAStore();
+      twoFAStore.setVerified(response.data.user.twoFAVerified === true);
 
       if (response.data.accessToken) {
         sessionStorage.setItem("accessToken", response.data.accessToken);
@@ -64,7 +61,10 @@ async function checkAuthState() {
     isAuthenticated.value = false;
     isAdmin.value = false;
     isPartner.value = false;
-    is2FAVerified.value = false;
+
+    const twoFAStore = useTwoFAStore();
+    twoFAStore.reset();
+
     sessionStorage.removeItem("accessToken");
     delete axiosInstance.defaults.headers.common["Authorization"];
   }
@@ -95,12 +95,9 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
 
-  // Sync 2FA status from cookie (in case app was reloaded)
-  const trustedDevice = getCookieValue("trustedDevice");
-  const twoFACookie = getCookieValue("twoFACookie");
-  if (twoFACookie === "true" || trustedDevice) {
-    is2FAVerified.value = true;
-  }
+  // ✅ Sync 2FA state from cookie
+  const twoFAStore = useTwoFAStore();
+  twoFAStore.syncFromCookie();
 
   if (requiresAuth && !isAuthenticated.value) {
     await checkAuthState();
@@ -111,7 +108,7 @@ router.beforeEach(async (to, from, next) => {
     return next("/login");
   }
 
-  const needs2FA = !is2FAVerified.value;
+  const needs2FA = !twoFAStore.isVerified;
 
   if (needs2FA && to.path !== "/verify-2fa") {
     console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
@@ -141,7 +138,9 @@ export function logout() {
   isAuthenticated.value = false;
   isAdmin.value = false;
   isPartner.value = false;
-  is2FAVerified.value = false;
+
+  const twoFAStore = useTwoFAStore();
+  twoFAStore.reset();
 
   sessionStorage.removeItem("accessToken");
   delete axiosInstance.defaults.headers.common["Authorization"];
