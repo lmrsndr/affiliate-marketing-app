@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
 
-// ✅ Send Email 2FA Code
+// ✅ Send Email 2FA Code (Improved Formatting & Deliverability)
 exports.sendEmail2FACode = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -24,8 +24,24 @@ exports.sendEmail2FACode = async (req, res) => {
 
     await sendEmail({
       to: user.email,
-      subject: "Your BundleBee 2FA Code",
-      html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+      subject: "🔐 Your BundleBee 2FA Verification Code",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #222; padding: 20px; border: 1px solid #eee; max-width: 600px; margin: auto;">
+          <h2 style="color: #2c3e50;">Hi ${user.firstName || "there"},</h2>
+          <p>To continue signing into your <strong>BundleBee</strong> account, please enter the following verification code:</p>
+          <div style="font-size: 28px; font-weight: bold; color: #2e86de; background: #f1f1f1; padding: 15px; text-align: center; border-radius: 8px; letter-spacing: 2px; margin: 20px 0;">
+            ${code}
+          </div>
+          <p>This code will expire in <strong>10 minutes</strong>. For your security, do not share this code with anyone.</p>
+          <hr />
+          <p style="font-size: 13px; color: #666;">
+            If you did not try to sign in, please ignore this message or contact us immediately at 
+            <a href="mailto:support@bundlebee.co.uk">support@bundlebee.co.uk</a>.
+          </p>
+          <p style="font-size: 12px; color: #aaa;">Sent by BundleBee • bundlebee.co.uk</p>
+        </div>
+      `,
+      text: `Hi ${user.firstName || "there"},\n\nYour BundleBee verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't try to sign in, please ignore this message or contact support@bundlebee.co.uk.\n\n- The BundleBee Team`,
     });
 
     return res.status(200).json({ message: "2FA code sent to your email." });
@@ -35,7 +51,7 @@ exports.sendEmail2FACode = async (req, res) => {
   }
 };
 
-// ✅ Verify 2FA Email Code (your original logic, unchanged)
+// ✅ Verify 2FA Email Code (unchanged)
 exports.verifyEmail2FACode = async (req, res) => {
   const { code, trustThisDevice } = req.body;
 
@@ -83,12 +99,10 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(401).json({ message: "Invalid code (match failed)" });
     }
 
-    // ✅ Set session flags
     req.session.awaiting2FA = false;
     req.session.twoFAVerified = true;
     console.log("✅ Session updated: 2FA passed");
 
-    // ✅ Mark user verified
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
@@ -101,7 +115,6 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     await user.save();
 
-    // ✅ Generate access token once
     const accessToken = jwt.sign(
       {
         id: user._id,
@@ -113,7 +126,6 @@ exports.verifyEmail2FACode = async (req, res) => {
       { expiresIn: "15m" }
     );
 
-    // ✅ Set auth cookie
     res.cookie("authCookie", accessToken, {
       httpOnly: true,
       secure: true,
@@ -123,7 +135,6 @@ exports.verifyEmail2FACode = async (req, res) => {
       maxAge: 15 * 60 * 1000,
     });
 
-    // ✅ Optionally trust device
     if (trustThisDevice) {
       const trustToken = jwt.sign(
         { id: user._id, purpose: "trustedDevice" },
@@ -141,7 +152,6 @@ exports.verifyEmail2FACode = async (req, res) => {
       });
     }
 
-    // ✅ Set frontend-readable 2FA cookie for UI logic
     res.cookie("twoFACookie", true, {
       httpOnly: false,
       secure: true,
@@ -159,7 +169,7 @@ exports.verifyEmail2FACode = async (req, res) => {
   }
 };
 
-// ✅ Resend Email 2FA Code (reuses send logic)
+// ✅ Resend Email 2FA Code (unchanged)
 exports.resendEmail2FACode = async (req, res) => {
   try {
     req.user = await User.findById(req.user._id);
