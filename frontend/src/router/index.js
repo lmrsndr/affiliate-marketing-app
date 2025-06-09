@@ -40,7 +40,8 @@ async function checkAuthState() {
       isPartner.value = response.data.user.role === "partner";
 
       const twoFAStore = useTwoFAStore();
-      twoFAStore.setVerified(response.data.user.twoFAVerified === true);
+      twoFAStore.setVerified(Boolean(response.data.user?.twoFAVerified));
+      console.log("🔐 2FA verified:", twoFAStore.isVerified);
 
       if (response.data.accessToken) {
         sessionStorage.setItem("accessToken", response.data.accessToken);
@@ -95,34 +96,30 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
 
-  // ✅ Always sync 2FA cookie state
   const twoFAStore = useTwoFAStore();
-  twoFAStore.syncFromCookie();
+  if (!twoFAStore.isVerified) {
+    twoFAStore.syncFromCookie();
+  }
 
-  // ✅ Allow direct access to login and callback routes
   if (to.path === "/login" || to.path === "/auth/callback") {
     return next();
   }
 
-  // ✅ 1. Run authentication check once if needed
   if (requiresAuth && !isAuthenticated.value) {
     await checkAuthState();
   }
 
-  // ✅ 2. If still unauthenticated, redirect to login
   if (requiresAuth && !isAuthenticated.value) {
     console.warn("🔒 Not authenticated. Redirecting to /login");
     return next("/login");
   }
 
-  // ✅ 3. Check 2FA (skip check if already on verify-2fa)
   const needs2FA = !twoFAStore.isVerified;
   if (requiresAuth && needs2FA && to.path !== "/verify-2fa") {
     console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
     return next("/verify-2fa");
   }
 
-  // ✅ 4. Prevent looping: if already verified, redirect away from /verify-2fa
   if (!needs2FA && to.path === "/verify-2fa") {
     console.warn("✅ 2FA complete. Redirecting to dashboard...");
     if (isAdmin.value) return next("/admin-dashboard");
@@ -130,7 +127,6 @@ router.beforeEach(async (to, from, next) => {
     return next("/dashboard");
   }
 
-  // ✅ 5. Role-based routing
   if (to.meta.requiresAdmin && !isAdmin.value) {
     return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
   }
