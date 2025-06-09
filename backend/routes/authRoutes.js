@@ -107,7 +107,7 @@ router.post("/set-cookie", (req, res) => {
 
 router.post("/trust-device", authMiddleware, trustThisDevice);
 
-// ✅ FIXED: Auth Status — trusts token, session, or DB for 2FA verification
+// ✅ Auth Status Check (2FA enforcement included)
 router.get("/status", async (req, res) => {
   const token = extractAccessToken(req);
   if (!token) return res.json({ isAuthenticated: false });
@@ -115,14 +115,18 @@ router.get("/status", async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
-
     if (!user) return res.status(404).json({ isAuthenticated: false });
 
-    const tokenVerified = decoded.twoFAVerified === true;
-    const sessionVerified = req.session?.twoFAVerified === true;
+    // 🛡️ Session-level 2FA enforcement
+    const awaiting2FA = req.session?.awaiting2FA === true;
+
+    // ✅ Only trust token if session is NOT awaiting 2FA
+    const tokenVerified = decoded.twoFAVerified === true && !awaiting2FA;
+
+    // ✅ OR user has already completed TOTP/email 2FA
     const dbVerified = user?.email2FA?.verified || user?.twoFA?.enabled;
 
-    const isVerified = tokenVerified || sessionVerified || dbVerified || false;
+    const isVerified = tokenVerified || dbVerified;
 
     return res.json({
       isAuthenticated: true,
@@ -139,6 +143,7 @@ router.get("/status", async (req, res) => {
     return res.json({ isAuthenticated: false });
   }
 });
+
 
 router.get("/enabled-views", async (req, res) => {
   const token = extractAccessToken(req);
