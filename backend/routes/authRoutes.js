@@ -12,7 +12,7 @@ const {
   forgotUsername,
   generateTokens,
   isTrustedDevice,
-  trustThisDevice, // ✅ Ensured: trustThisDevice is imported correctly
+  trustThisDevice,
 } = require("../controllers/authController");
 
 const email2FAController = require("../controllers/email2FAController");
@@ -22,15 +22,6 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-console.log("🔍 typeof trustThisDevice:", typeof trustThisDevice);
-console.log("🔍 typeof email2FAController.sendEmail2FACode:", typeof email2FAController.sendEmail2FACode);
-console.log("🔍 typeof email2FAController.verifyEmail2FACode:", typeof email2FAController.verifyEmail2FACode);
-console.log("🔍 typeof email2FAController.resendEmail2FACode:", typeof email2FAController.resendEmail2FACode);
-console.log("🔍 typeof totpController.verifyTOTP:", typeof totpController.verifyTOTP);
-
-
-
-// ✅ Utility to extract token from headers or cookies
 function extractAccessToken(req) {
   let token = req.cookies.authCookie;
   if (!token && req.headers.authorization?.startsWith("Bearer ")) {
@@ -39,30 +30,17 @@ function extractAccessToken(req) {
   return token;
 }
 
-// ✅ Confirm Route is Working
 router.get("/", (req, res) => {
   res.send("✅ Auth route is operational");
 });
 
-// ✅ Register
 router.post("/register", registerUser);
-
-// ✅ Login
 router.post("/login", loginUser);
-
-// ✅ Logout
 router.get("/logout", logoutUser);
-
-// ✅ Refresh Token
 router.get("/refresh", refreshToken);
-
-// ✅ Password Reset
 router.post("/reset-password", resetPassword);
-
-// ✅ Forgot Username
 router.post("/forgot-username", forgotUsername);
 
-// ✅ Google OAuth Start
 router.get(
   "/google",
   passport.authenticate("google", {
@@ -73,7 +51,6 @@ router.get(
   })
 );
 
-// ✅ Google OAuth Callback with Trusted Device + 2FA Logic
 router.get(
   "/google/callback",
   passport.authenticate("google", {
@@ -86,14 +63,11 @@ router.get(
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=unauthorized`);
       }
 
-      // 🔐 Check if device is trusted
       const trusted = isTrustedDevice(req);
       req.session.awaiting2FA = !trusted;
 
-      // ✅ Generate tokens
       const { accessToken, refreshToken } = generateTokens(req.user, req.session);
 
-      // ✅ Set refresh token in secure cookie
       res.cookie("refreshCookie", refreshToken, {
         httpOnly: true,
         secure: true,
@@ -103,7 +77,6 @@ router.get(
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // ✅ Redirect with access token
       const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}`;
       return res.redirect(redirectUrl);
     } catch (err) {
@@ -113,7 +86,6 @@ router.get(
   }
 );
 
-// ✅ Set refresh cookie (for OAuth Option 1)
 router.post("/set-cookie", (req, res) => {
   const { refreshToken } = req.body;
 
@@ -133,10 +105,9 @@ router.post("/set-cookie", (req, res) => {
   return res.status(200).json({ message: "✅ Refresh token cookie set" });
 });
 
-// ✅ Trust this device (sets 30-day cookie)
-router.post("/trust-device", authMiddleware, trustThisDevice); // ✅ Now correctly linked
+router.post("/trust-device", authMiddleware, trustThisDevice);
 
-// ✅ Auth Status Check (used in Vue beforeEach guard)
+// ✅ FIXED: Auth Status — trusts token, session, or DB for 2FA verification
 router.get("/status", async (req, res) => {
   const token = extractAccessToken(req);
   if (!token) return res.json({ isAuthenticated: false });
@@ -145,7 +116,13 @@ router.get("/status", async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
-    const isVerified = req.session?.awaiting2FA === false;
+    if (!user) return res.status(404).json({ isAuthenticated: false });
+
+    const tokenVerified = decoded.twoFAVerified === true;
+    const sessionVerified = req.session?.twoFAVerified === true;
+    const dbVerified = user?.email2FA?.verified || user?.twoFA?.enabled;
+
+    const isVerified = tokenVerified || sessionVerified || dbVerified || false;
 
     return res.json({
       isAuthenticated: true,
@@ -163,7 +140,6 @@ router.get("/status", async (req, res) => {
   }
 });
 
-// ✅ Get enabled views for user
 router.get("/enabled-views", async (req, res) => {
   const token = extractAccessToken(req);
   if (!token) return res.status(401).json({ message: "Unauthorized" });
@@ -181,7 +157,6 @@ router.get("/enabled-views", async (req, res) => {
   }
 });
 
-// ✅ User Profile
 router.get("/profile", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -193,7 +168,6 @@ router.get("/profile", authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ /auth/me — Get current user from access or refresh token
 router.get("/me", async (req, res) => {
   const token = extractAccessToken(req);
   if (!token) return res.status(401).json({ message: "Unauthorized" });
@@ -216,12 +190,10 @@ router.get("/me", async (req, res) => {
   }
 });
 
-// ✅ Email 2FA Routes
 router.post("/2fa-email/send", authMiddleware, email2FAController.sendEmail2FACode);
 router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2FACode);
 router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
 
-// ✅ App-based TOTP 2FA Routes
 router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
 router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
 
