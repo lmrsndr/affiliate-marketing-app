@@ -29,9 +29,9 @@ import Email2FAVerify from "@/components/Email2FAVerify.vue";
 import Upgrade2FAPrompt from "@/components/Upgrade2FAPrompt.vue";
 
 /* ✅ Brand + Theme CSS (global design tokens & overrides) */
-import "@/assets/css/brand.css";
-import "@/assets/css/light.css";
-import "@/assets/css/dark.css";
+import "@/css/brand.css";
+import "@/css/light.css";
+import "@/css/dark.css";
 
 export default {
   name: "App",
