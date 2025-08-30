@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "compression": "^1.8.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "express-rate-limit": "^8.0.1"
+  }
+}
