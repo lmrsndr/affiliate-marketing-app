@@ -1,0 +1,34 @@
+name: release-please
+
+on:
+  push:
+    branches: [ "main" ]  # ← change if your default branch is different
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Release Please
+        uses: google-github-actions/release-please-action@v4
+        with:
+          # "simple" = single root changelog covering backend+frontend together.
+          # It doesn't try to bump package.json versions; it just manages CHANGELOG + GitHub Releases.
+          release-type: simple
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: customize sections shown in the changelog
+          changelog-types: |
+            [
+              {"type":"feat","section":"Features"},
+              {"type":"fix","section":"Bug Fixes"},
+              {"type":"perf","section":"Performance"},
+              {"type":"refactor","section":"Refactors"},
+              {"type":"docs","section":"Documentation"},
+              {"type":"test","section":"Tests"},
+              {"type":"build","section":"Build System"},
+              {"type":"ci","section":"CI"},
+              {"type":"chore","section":"Chores"}
+            ]
