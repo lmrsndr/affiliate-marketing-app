@@ -2,81 +2,128 @@
   <div class="landing-page">
     <!-- TRUSTED HERO SECTION -->
     <section class="hero updated-hero">
-      <div class="hero-bee-overlay"></div>
       <div class="hero-content">
-        <h1>Trust What You Subscribe To</h1>
-        <p>
-          BundleBee connects you with verified UK subscription brands — powered
-          by real reviews, curated rankings, and complete transparency.
-        </p>
-        <router-link to="/login" class="cta-btn">Join the Hive</router-link>
-        <div class="trust-points">
-          <span>✔ Verified Partners</span>
-          <span>⭐ Genuine Reviews</span>
-          <span>🔒 Secure, Ad-Free Discovery</span>
+        <div class="hero-badge bb-badge">
+          <span>🛡</span> Trusted UK Subscriptions
         </div>
+
+        <h1 class="hero-title">Trust What You Subscribe To</h1>
+        <p class="hero-subtitle">
+          BundleBee connects you with verified UK subscription brands — powered by real reviews,
+          curated rankings, and complete transparency.
+        </p>
+
+        <div class="hero-cta">
+          <router-link to="/login" class="bb-btn bb-btn--primary" aria-label="Join BundleBee">
+            Join the Hive
+          </router-link>
+          <router-link to="/quiz" class="bb-btn bb-btn--ghost" aria-label="Find your matches">
+            Take the Match Quiz
+          </router-link>
+        </div>
+
+        <ul class="trust-points" aria-label="Trust points">
+          <li><span>✔</span> Verified Partners</li>
+          <li><span>⭐</span> Genuine Reviews</li>
+          <li><span>🔒</span> Secure, Ad-Free Discovery</li>
+        </ul>
+      </div>
+
+      <div class="hero-mark">
+        <img
+          src="/android-chrome-512x512.png"
+          alt="BundleBee logo"
+          width="256"
+          height="256"
+          loading="eager"
+          decoding="async"
+        />
       </div>
     </section>
 
     <!-- BUNDLEBEE SECTION -->
-    <section class="bundlebee-brand">
-      <img src="/logo512.png" alt="BundleBee Logo" />
+    <section class="bundlebee-brand bb-card bb-card--hover">
+      <img
+        src="/android-chrome-192x192.png"
+        alt="BundleBee emblem"
+        class="brand-mark"
+        width="96"
+        height="96"
+        loading="lazy"
+        decoding="async"
+      />
       <h2>Why BundleBee?</h2>
       <p>
-        We're not just a marketplace — we’re a movement for honest, smart, and
-        ethical subscription discovery. Backed by trust, powered by transparency.
+        We’re not just a marketplace — we’re a movement for honest, smart, and ethical subscription
+        discovery. Backed by <strong>trust</strong>, powered by <strong>transparency</strong>.
       </p>
     </section>
 
-    <!-- HOW IT WORKS TILES -->
+    <!-- HOW IT WORKS -->
     <section class="how-it-works">
       <h2>How It Works</h2>
       <div class="tiles">
-        <div class="tile">
-          <span>🔍</span>
+        <article class="tile bb-card">
+          <span class="tile-emoji">🔍</span>
           <h3>Browse</h3>
           <p>Explore curated UK brands by lifestyle, values, or category.</p>
-        </div>
-        <div class="tile">
-          <span>🎯</span>
+        </article>
+        <article class="tile bb-card">
+          <span class="tile-emoji">🎯</span>
           <h3>Get Matched</h3>
-          <p>Smart suggestions based on your preferences, no ads ever.</p>
-        </div>
-        <div class="tile">
-          <span>💬</span>
+          <p>Smart suggestions based on your preferences — no ads, ever.</p>
+        </article>
+        <article class="tile bb-card">
+          <span class="tile-emoji">💬</span>
           <h3>Read Reviews</h3>
           <p>Genuine, helpful reviews from real users like you.</p>
-        </div>
-        <div class="tile">
-          <span>🛒</span>
+        </article>
+        <article class="tile bb-card">
+          <span class="tile-emoji">🛒</span>
           <h3>Subscribe Securely</h3>
           <p>Join trusted partners with verified badges & safe checkout.</p>
-        </div>
+        </article>
       </div>
     </section>
 
-    <!-- TRENDING PARTNERS CAROUSEL -->
-    <section class="trending-carousel">
+    <!-- TRENDING PARTNERS -->
+    <section class="trending-carousel bb-card">
       <h2>Trending UK Partners</h2>
-      <div v-for="(group, index) in categorizedPartners" :key="group.category" class="carousel-row">
+
+      <div
+        v-for="(group, index) in categorizedPartners"
+        :key="group.category || index"
+        class="carousel-row"
+      >
         <h3>{{ group.category }}</h3>
-        <div class="carousel-tiles">
-          <div class="carousel-tile" v-for="(partner, pIndex) in group.partners" :key="partner._id || `${group.category}-${pIndex}`">
+
+        <div class="carousel-tiles" role="list">
+          <div
+            class="carousel-tile"
+            v-for="(partner, pIndex) in group.partners"
+            :key="partner._id || `${group.category}-${pIndex}`"
+            role="listitem"
+          >
             <div class="new-ribbon" v-if="!partner.ratingCount || partner.ratingCount === 0">NEW</div>
 
             <img
               class="partner-logo"
               :src="partner.imageUrl"
-              :alt="partner.name"
+              :alt="`${partner.name} logo`"
               @error="onImgError($event)"
+              loading="lazy"
+              decoding="async"
             />
+
             <h4 class="partner-name" :title="partner.name">{{ partner.name }}</h4>
 
             <div class="badge" v-if="partner.isVerified">🛡 Verified</div>
 
-            <div class="rating">
+            <div class="rating" aria-label="Partner rating">
               <template v-if="partner.rating !== undefined && partner.ratingCount > 0">
-                <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(partner.rating) }">★</span>
+                <div class="bb-stars" :data-rating="Math.round(partner.rating)">
+                  <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(partner.rating) }">★</span>
+                </div>
                 <span class="rating-value">
                   {{ partner.rating.toFixed(1) }}/5
                   <span class="user-count">
@@ -90,21 +137,25 @@
             </div>
 
             <div class="tile-actions">
-              <a :href="partner.affiliateLink" class="visit-btn" target="_blank" rel="noopener">Visit</a>
-              <router-link :to="`/partner/${partner._id}`" class="details-btn">Details</router-link>
+              <a :href="partner.affiliateLink" class="visit-btn bb-btn bb-btn--primary" target="_blank" rel="noopener">
+                Visit
+              </a>
+              <router-link :to="`/partner/${partner._id}`" class="details-btn bb-btn bb-btn--ghost">
+                Details
+              </router-link>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- TESTIMONIAL CAROUSEL -->
-    <section class="testimonial-carousel">
+    <!-- TESTIMONIALS -->
+    <section class="testimonial-carousel bb-card">
       <h2>What Our Users Are Saying</h2>
       <div class="testimonial">
         <transition name="fade" mode="out-in">
           <blockquote :key="currentIndex">
-            {{ testimonials[currentIndex].quote }}
+            “{{ testimonials[currentIndex].quote }}”
             <footer>— {{ testimonials[currentIndex].author }}</footer>
           </blockquote>
         </transition>
@@ -114,7 +165,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import API from '../api.js';
 
 const boxes = ref([]);
@@ -124,6 +175,7 @@ const testimonials = ref([
   { quote: 'Reviews actually reflect reality. Love the clean design too!', author: 'Samira, London' }
 ]);
 const currentIndex = ref(0);
+let testimonialTimer = null;
 
 const categorizedPartners = computed(() => {
   const categories = {};
@@ -149,8 +201,9 @@ const fetchBoxes = async () => {
 };
 
 const onImgError = (e) => {
-  if (!e.target.src.includes('/default.png')) {
-    e.target.src = '/default.png';
+  // Fallback to a brand-safe placeholder
+  if (!e.target.src.includes('/android-chrome-192x192.png')) {
+    e.target.src = '/android-chrome-192x192.png';
   }
 };
 
@@ -160,354 +213,232 @@ const formatCount = (count) => {
 
 onMounted(() => {
   fetchBoxes();
-  setInterval(() => {
+  testimonialTimer = setInterval(() => {
     currentIndex.value = (currentIndex.value + 1) % testimonials.value.length;
   }, 5000);
+});
+
+onUnmounted(() => {
+  if (testimonialTimer) clearInterval(testimonialTimer);
 });
 </script>
 
 <style scoped>
-/* ===== SEARCH BAR ===== */
-.search-bar {
-  margin-top: 1rem;
-  padding: 1rem 1.5rem;
-  width: 100%;
-  max-width: 480px;
-  border: 2px solid #0077cc;
-  border-radius: 12px;
-  font-size: 1.15rem;
-  outline: none;
-  transition: box-shadow 0.3s, transform 0.2s;
-  background-color: #ffffff;
-}
-.search-bar:focus {
-  box-shadow: 0 0 12px rgba(0, 119, 204, 0.3);
-  transform: scale(1.02);
-}
-
 /* ===== HERO SECTION ===== */
 .hero.updated-hero {
-  background: linear-gradient(to right, #ebf5ff, #ffffff);
-  padding: 4rem 2rem;
-  border-radius: 20px;
-  text-align: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  background:
+    radial-gradient(1200px 400px at 10% 20%, color-mix(in srgb, var(--bb-primary-light) 20%, transparent), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--bb-primary-light) 6%, var(--bb-bg) 94%), var(--bb-bg));
+  padding: clamp(2rem, 4vw, 4rem) clamp(1rem, 4vw, 2rem);
+  border-radius: var(--bb-radius);
   margin: 2rem auto;
-  max-width: 1000px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
-}
-.hero-content h1 {
-  font-size: 2.6rem;
-  color: #003366;
-  font-weight: 700;
-  margin-bottom: 1rem;
-}
-.hero-content p {
-  font-size: 1.2rem;
-  color: #333;
-  margin-bottom: 1.5rem;
-}
-.cta-btn {
-  display: inline-block;
-  padding: 0.75rem 1.5rem;
-  background-color: #0077cc;
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  border-radius: 8px;
-  text-decoration: none;
-  margin-top: 0.5rem;
-  transition: background-color 0.3s;
-}
-.cta-btn:hover {
-  background-color: #005fa3;
-}
-.trust-points {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-top: 2rem;
-  font-size: 1rem;
-  color: #005c99;
-  font-weight: 500;
+  max-width: 1120px;
+  box-shadow: var(--bb-shadow-md);
 }
 
-/* ===== BUNDLEBEE SECTION ===== */
+.hero-content {
+  text-align: left;
+}
+.hero-badge {
+  margin-bottom: .75rem;
+}
+.hero-title {
+  font-family: var(--bb-font-heading);
+  font-size: clamp(1.75rem, 3.4vw, 3rem);
+  line-height: 1.1;
+  margin: 0 0 .5rem;
+}
+.hero-subtitle {
+  color: var(--bb-muted);
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  max-width: 52ch;
+}
+
+.hero-cta {
+  display: flex;
+  gap: .75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.hero-mark {
+  display: grid;
+  place-items: center;
+}
+.hero-mark img {
+  width: min(280px, 60vw);
+  height: auto;
+  filter: drop-shadow(0 12px 26px rgba(0,0,0,.06));
+}
+
+/* ===== BRAND SECTION ===== */
 .bundlebee-brand {
-  background: linear-gradient(135deg, #eef9ff, #ffffff);
-  padding: 3rem 1.5rem;
-  border-radius: 18px;
-  margin: 3rem auto;
   text-align: center;
+  padding: 2rem 1.25rem;
+  margin: 2rem auto 0;
   max-width: 960px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+}
+.bundlebee-brand .brand-mark {
+  height: 96px;
+  width: 96px;
+  margin-bottom: .5rem;
 }
 .bundlebee-brand h2 {
-  font-size: 2.2rem;
-  margin-bottom: 1rem;
-}
-.bundlebee-brand img {
-  max-width: 120px;
-  margin-bottom: 1rem;
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  margin-bottom: .5rem;
 }
 .bundlebee-brand p {
-  font-size: 1rem;
-  color: #444;
-  max-width: 640px;
+  color: var(--bb-muted);
+  max-width: 60ch;
   margin: 0 auto;
 }
 
 /* ===== HOW IT WORKS ===== */
 .how-it-works {
-  background-color: #f7fbff;
-  padding: 3rem 1.5rem;
-  border-radius: 16px;
-  margin: 3rem auto;
-  max-width: 960px;
+  margin: 2rem auto;
+  padding: 2rem 1.25rem;
+  max-width: 1120px;
   text-align: center;
 }
 .how-it-works h2 {
-  font-size: 2rem;
-  margin-bottom: 2rem;
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  margin-bottom: 1.25rem;
 }
 .tiles {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2rem;
-  justify-items: center;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 1rem;
 }
 .tile {
-  background-color: #ffffff;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
-  max-width: 280px;
-  text-align: center;
-  transition: transform 0.2s;
+  padding: 1rem;
+  border-radius: var(--bb-radius);
+  transition: transform var(--bb-duration) var(--bb-ease), box-shadow var(--bb-duration) var(--bb-ease);
 }
-.tile:hover {
-  transform: translateY(-3px);
-}
+.tile:hover { transform: translateY(-2px); box-shadow: var(--bb-shadow-md); }
+.tile-emoji { font-size: 1.5rem; display: inline-block; margin-bottom: .5rem; }
+.tile h3 { margin: .25rem 0; font-size: 1.05rem; }
+.tile p { color: var(--bb-muted); font-size: .95rem; }
 
-/* ===== TESTIMONIAL ===== */
-.testimonial-carousel {
-  background: #fcfdff;
-  padding: 2rem;
-  border-radius: 1rem;
-  margin: 2rem auto;
-  max-width: 700px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  border: 1px solid #e0e6ee;
-}
-.testimonial-carousel h2 {
-  margin-bottom: 1.2rem;
-  font-size: 1.6rem;
-  color: #005c99;
-}
-.testimonial blockquote {
-  font-size: 1.2rem;
-  font-style: italic;
-  color: #444;
-  padding: 0 1rem;
-  position: relative;
-  margin: 0 auto;
-  max-width: 600px;
-}
-.testimonial footer {
-  margin-top: 0.8rem;
-  font-weight: 600;
-  color: #777;
-}
-
-/* ===== TRENDING CAROUSEL SECTION ===== */
+/* ===== TRENDING PARTNERS ===== */
 .trending-carousel {
-  background: #ffffff;
-  padding: 3rem 1.5rem;
-  margin: 3rem auto;
-  max-width: 1000px;
-  border-radius: 1rem;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+  background: var(--bb-surface);
+  border: 1px solid var(--bb-border);
+  border-radius: var(--bb-radius);
+  padding: 1.5rem;
+  margin: 2rem auto;
+  max-width: 1120px;
 }
 .trending-carousel h2 {
-  font-size: 1.9rem;
-  margin-bottom: 2rem;
-  color: #003366;
-}
-.carousel-row {
-  margin-bottom: 2rem;
-}
-.carousel-row h3 {
-  font-size: 1.2rem;
-  color: #333;
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
   margin-bottom: 1rem;
 }
+.carousel-row { margin-bottom: 1.25rem; }
+.carousel-row h3 { font-size: 1.05rem; margin: .25rem 0 .75rem; color: var(--bb-muted); }
 
-/* ===== DESKTOP CAROUSEL TILES ===== */
+/* scrollable row */
 .carousel-tiles {
   display: flex;
-  gap: 1rem;
+  gap: .75rem;
   overflow-x: auto;
   scroll-behavior: smooth;
-  padding-bottom: 0.5rem;
-  flex-wrap: nowrap;
+  padding-bottom: .25rem;
 }
-.carousel-tiles::-webkit-scrollbar {
-  height: 6px;
-}
-.carousel-tiles::-webkit-scrollbar-thumb {
-  background: #cccccc;
-  border-radius: 4px;
-}
+.carousel-tiles::-webkit-scrollbar { height: 6px; }
+.carousel-tiles::-webkit-scrollbar-thumb { background: var(--bb-border); border-radius: 4px; }
 
-/* ===== PARTNER TILE ===== */
 .carousel-tile {
-  background-color: #f8faff;
-  border-radius: 10px;
-  padding: 1rem;
+  background: var(--bb-surface);
+  border: 1px solid var(--bb-border);
+  border-radius: var(--bb-radius-md);
+  padding: .9rem;
   width: 220px;
-  height: 340px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  min-height: 320px;
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
   text-align: center;
   position: relative;
-  overflow: hidden;
 }
-.carousel-tile .new-ribbon {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #ff4d4f;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: bold;
-  padding: 4px 40px;
-  text-align: center;
-  transform: rotate(45deg);
-  transform-origin: 0 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  pointer-events: none;
+.new-ribbon {
+  position: absolute; top: 0; right: 0;
+  background: var(--bb-accent); color: #1a1a1a;
+  font-size: .7rem; font-weight: 800;
+  padding: 2px 36px; transform: rotate(45deg) translate(22%, -65%);
+  transform-origin: top right;
+  box-shadow: var(--bb-shadow-sm);
 }
-.carousel-tile .partner-logo {
+.partner-logo {
   max-width: 100%;
   max-height: 80px;
   object-fit: contain;
-  margin-bottom: 0.5rem;
+  margin-bottom: .5rem;
 }
-.carousel-tile .partner-name {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #003366;
-  margin: 0.25rem 0;
-  height: 2.4em;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.partner-name {
+  font-weight: 700;
+  margin: 0.25rem 0 .35rem;
+  height: 2.4em; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.carousel-tile .badge {
-  font-size: 0.85rem;
-  color: #007700;
-  margin-top: 0.25rem;
+.badge { color: var(--bb-primary-dark); font-weight: 700; font-size: .85rem; }
+.rating { display: grid; place-items: center; gap: .25rem; margin: .35rem 0; }
+.star { color: var(--bb-border); }
+.star.filled { color: var(--bb-accent); }
+.rating-value { font-size: .85rem; }
+.user-count { color: var(--bb-muted); margin-left: .25rem; font-size: .8rem; }
+
+.tile-actions { margin-top: .6rem; display: grid; gap: .5rem; }
+.visit-btn, .details-btn { width: 100%; }
+
+/* ===== TESTIMONIALS ===== */
+.testimonial-carousel {
+  margin: 2rem auto;
+  max-width: 840px;
+  padding: 1.5rem;
+  border: 1px solid var(--bb-border);
+  border-radius: var(--bb-radius);
 }
-.carousel-tile .rating {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.9rem;
-  margin: 0.3rem 0;
+.testimonial-carousel h2 {
+  margin-bottom: .75rem;
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem);
 }
-.carousel-tile .star {
-  font-size: 1rem;
-  color: #ccc;
-}
-.carousel-tile .star.filled {
-  color: #ffaa00;
-}
-.carousel-tile .rating-value {
-  font-size: 0.85rem;
-  color: #444;
-}
-.carousel-tile .user-count {
-  color: #888;
-  margin-left: 0.25rem;
-  font-size: 0.8rem;
-}
-.carousel-tile .no-rating {
-  font-size: 0.85rem;
-  color: #888;
+.testimonial blockquote {
+  font-size: 1.05rem;
   font-style: italic;
+  color: var(--bb-text);
+  opacity: .9;
+  margin: 0 auto;
+  max-width: 60ch;
 }
-.carousel-tile .tile-actions {
-  margin-top: 0.75rem;
-  display: flex;
-  gap: 0.5rem;
-  flex-direction: column;
-  width: 100%;
-}
-.carousel-tile .visit-btn,
-.carousel-tile .details-btn {
-  padding: 0.5rem;
-  font-size: 0.85rem;
-  border-radius: 6px;
-  text-decoration: none;
+.testimonial footer {
+  margin-top: .6rem;
   font-weight: 600;
-  display: inline-block;
-  width: 100%;
-  text-align: center;
-  transition: background-color 0.3s;
-}
-.carousel-tile .visit-btn {
-  background-color: #0077cc;
-  color: white;
-}
-.carousel-tile .visit-btn:hover {
-  background-color: #005fa3;
-}
-.carousel-tile .details-btn {
-  background-color: #e8f0ff;
-  color: #005fa3;
-}
-.carousel-tile .details-btn:hover {
-  background-color: #d0e4ff;
+  color: var(--bb-muted);
 }
 
-/* ===== TOUCH DEVICE LAYOUTS ===== */
-
-/* MOBILE: 1 column on coarse pointer and max-width 1024px */
-@media (pointer: coarse) and (max-width: 1024px) {
-  .carousel-tiles {
-    display: block;
-    overflow-x: hidden;
+/* ===== RESPONSIVE ===== */
+@media (max-width: 920px) {
+  .hero.updated-hero {
+    grid-template-columns: 1fr;
+    text-align: center;
   }
-  .carousel-tile {
-    width: 100%;
-    max-width: 100%;
-    margin-bottom: 1.5rem;
-    height: auto;
-  }
+  .hero-content { text-align: center; }
+  .hero-cta { justify-content: center; }
 }
 
-/* TABLET: 2 columns between 769px and 1024px on coarse pointer */
-@media (pointer: coarse) and (min-width: 1025px){
-  .carousel-tiles {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-    overflow-x: hidden;
-  }
-  .carousel-tile {
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-    height: auto;
-  }
+@media (max-width: 720px) {
+  .tiles { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 }
+
+@media (max-width: 420px) {
+  .tiles { grid-template-columns: 1fr; }
+  .carousel-tile { width: 85vw; }
+}
+
+/* Fade transition for testimonials */
+.fade-enter-active, .fade-leave-active { transition: opacity .35s var(--bb-ease); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
