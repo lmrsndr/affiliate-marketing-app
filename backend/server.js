@@ -15,13 +15,13 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const nodemailer = require("nodemailer");
 const path = require("path");
 const mongoose = require("mongoose"); // for /api/ready
+const assertCsp = require("./middleware/assertCsp"); // ✅ new middleware
 
 // ───────────────────────────────────────────────────────────────
 // ENV + sanity checks
 // ───────────────────────────────────────────────────────────────
 const {
   NODE_ENV = "development",
-  PORT = 5000,
   MONGO_URI,
   SESSION_SECRET,
   JWT_SECRET,
@@ -29,11 +29,18 @@ const {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
-  CORS_ORIGINS,                 // e.g. "https://bundlebee.co.uk,https://www.bundlebee.co.uk,http://localhost:5173"
-  COOKIE_DOMAIN = ".bundlebee.co.uk", // only used in production
+  CORS_ORIGINS,
+  COOKIE_DOMAIN = ".bundlebee.co.uk",
   EMAIL_ZOHO,
   PASS_ZOHO,
 } = process.env;
+
+// Safe PORT coercion
+const rawPort = process.env.PORT;
+const PORT =
+  typeof rawPort === "string" && rawPort.trim() !== "" && !Number.isNaN(Number(rawPort))
+    ? Number(rawPort)
+    : 5000;
 
 [
   ["MONGO_URI", MONGO_URI],
@@ -69,36 +76,41 @@ const transporter = nodemailer.createTransport({
 // App init
 // ───────────────────────────────────────────────────────────────
 const app = express();
-
-// Secure cookies behind a proxy (Render/Heroku/Nginx)
 app.set("trust proxy", 1);
 
 // DB
 connectDB();
 
-// Global rate limiter (perimeter)
+// Global rate limiter
 app.use(globalRateLimiter);
 
-// Helmet (with a safe CSP baseline for APIs)
+// ───────────────────────────────────────────────────────────────
+// Security headers (tight API CSP)
+// ───────────────────────────────────────────────────────────────
 app.use(
   helmet({
     contentSecurityPolicy: {
-      useDefaults: true,
+      useDefaults: false,
       directives: {
-        "default-src": ["'self'"],
-        "img-src": ["'self'", "data:", "https:"],
-        "script-src": ["'self'"],
-        "style-src": ["'self'", "'unsafe-inline'"], // allow inline styles for simplicity
+        "default-src": ["'none'"],
         "connect-src": ["'self'"],
+        "img-src": ["'self'", "data:"],
         "frame-ancestors": ["'none'"],
-        "upgrade-insecure-requests": [],
-      },
+        "base-uri": ["'none'"],
+        "form-action": ["'none'"],
+        "object-src": ["'none'"],
+        "script-src": ["'none'"],
+        "script-src-attr": ["'none'"],
+      }
     },
     crossOriginEmbedderPolicy: false,
   })
 );
 
-// CORS allow-list from env (plus a sensible default for your domain)
+// ✅ Assert CSP middleware (dev safeguard)
+app.use(assertCsp(NODE_ENV));
+
+// CORS
 const fallbackOrigins = ["https://bundlebee.co.uk", "https://www.bundlebee.co.uk", "http://localhost:5173"];
 const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigins)
   .map((s) => s.trim())
@@ -107,7 +119,6 @@ const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigin
 app.use(
   cors({
     origin: (origin, cb) => {
-      // allow server-to-server & curl (no origin) and allowlisted origins
       if (!origin || parsedAllowlist.includes(origin)) return cb(null, true);
       return cb(new Error("Not allowed by CORS"));
     },
@@ -123,13 +134,13 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Session for Passport/Google
+// Session
 app.use(
   session({
     store: MongoStore.create({
       mongoUrl: MONGO_URI,
       collectionName: "sessions",
-      ttl: 14 * 24 * 60 * 60, // 14 days
+      ttl: 14 * 24 * 60 * 60,
     }),
     secret: SESSION_SECRET,
     resave: false,
@@ -138,7 +149,7 @@ app.use(
     cookie: {
       maxAge: 14 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: IS_PROD, // secure only in prod
+      secure: IS_PROD,
       sameSite: IS_PROD ? "None" : "Lax",
       domain: IS_PROD ? COOKIE_DOMAIN : undefined,
       path: "/",
@@ -146,11 +157,11 @@ app.use(
   })
 );
 
-// Passport init
+// Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Google OAuth Strategy
+// Google OAuth
 passport.use(
   new GoogleStrategy(
     {
@@ -191,7 +202,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // ───────────────────────────────────────────────────────────────
-// OAuth routes
+// Routes
 // ───────────────────────────────────────────────────────────────
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
@@ -216,7 +227,6 @@ app.get(
 
       const refreshToken = jwt.sign({ id: req.user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
 
-      // cookie options dynamic by env
       const cookieOpts = {
         httpOnly: true,
         secure: IS_PROD,
@@ -228,8 +238,7 @@ app.get(
       res.cookie("authCookie", accessToken, { ...cookieOpts, maxAge: 15 * 60 * 1000 });
       res.cookie("refreshCookie", refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
-      const redirectURL = `https://bundlebee.co.uk/auth/callback?accessToken=${accessToken}`;
-      return res.redirect(redirectURL);
+      return res.redirect(`https://bundlebee.co.uk/auth/callback?accessToken=${accessToken}`);
     } catch (err) {
       console.error("❌ OAuth error:", err);
       return res.redirect("https://bundlebee.co.uk/login?error=server");
@@ -254,7 +263,7 @@ app.get("/auth/logout", (req, res) => {
   });
 });
 
-// Test cookie route — env-aware cookies
+// Test cookie
 app.get("/api/test-cookie", (req, res) => {
   res.cookie("test_cookie", "yes", {
     httpOnly: true,
@@ -266,13 +275,11 @@ app.get("/api/test-cookie", (req, res) => {
   res.send("✅ test_cookie set");
 });
 
-// ───────────────────────────────────────────────────────────────
 // Health & readiness
-// ───────────────────────────────────────────────────────────────
-app.get("/health", (_req, res) => res.status(200).json({ ok: true })); // legacy/root
-app.get("/api/health", (_req, res) => res.status(200).json({ ok: true })); // namespaced
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
+app.get("/api/health", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/api/ready", (_req, res) => {
-  const ready = mongoose.connection.readyState === 1; // 1 = connected
+  const ready = mongoose.connection.readyState === 1;
   return res.status(ready ? 200 : 503).json({ ready });
 });
 
@@ -281,12 +288,10 @@ app.get("/", (_req, res) => {
   res.send("✅ API root is reachable. Try /api/health or /api/ready.");
 });
 
-// Static uploads (if you use them)
+// Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
-// ───────────────────────────────────────────────────────────────
 // API routes
-// ───────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/boxes", require("./routes/boxRoutes"));
