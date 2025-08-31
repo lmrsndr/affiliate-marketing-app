@@ -14,6 +14,7 @@ const { globalRateLimiter } = require("./controllers/authController");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const nodemailer = require("nodemailer");
 const path = require("path");
+const mongoose = require("mongoose"); // for /api/ready
 
 // ───────────────────────────────────────────────────────────────
 // ENV + sanity checks
@@ -52,7 +53,7 @@ const {
 const IS_PROD = NODE_ENV === "production";
 
 // ───────────────────────────────────────────────────────────────
-// Mailer (Zoho) — unchanged
+// Mailer (Zoho)
 // ───────────────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
   host: "smtp.zoho.eu",
@@ -149,7 +150,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Google OAuth Strategy — unchanged logic, just using env safely
+// Google OAuth Strategy
 passport.use(
   new GoogleStrategy(
     {
@@ -157,7 +158,7 @@ passport.use(
       clientSecret: GOOGLE_CLIENT_SECRET,
       callbackURL: GOOGLE_REDIRECT_URI,
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (_accessToken, _refreshToken, profile, done) => {
       try {
         let user = await User.findOne({ googleId: profile.id });
         if (!user) {
@@ -190,7 +191,7 @@ passport.deserializeUser(async (id, done) => {
 });
 
 // ───────────────────────────────────────────────────────────────
-// OAuth routes — unchanged
+// OAuth routes
 // ───────────────────────────────────────────────────────────────
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
@@ -253,7 +254,7 @@ app.get("/auth/logout", (req, res) => {
   });
 });
 
-// Test cookie route — unchanged, but env-aware cookies
+// Test cookie route — env-aware cookies
 app.get("/api/test-cookie", (req, res) => {
   res.cookie("test_cookie", "yes", {
     httpOnly: true,
@@ -265,17 +266,26 @@ app.get("/api/test-cookie", (req, res) => {
   res.send("✅ test_cookie set");
 });
 
-// Health + Root
-app.get("/health", (_req, res) => res.json({ ok: true }));
+// ───────────────────────────────────────────────────────────────
+// Health & readiness
+// ───────────────────────────────────────────────────────────────
+app.get("/health", (_req, res) => res.status(200).json({ ok: true })); // legacy/root
+app.get("/api/health", (_req, res) => res.status(200).json({ ok: true })); // namespaced
+app.get("/api/ready", (_req, res) => {
+  const ready = mongoose.connection.readyState === 1; // 1 = connected
+  return res.status(ready ? 200 : 503).json({ ready });
+});
+
+// Root info
 app.get("/", (_req, res) => {
-  res.send("✅ API root is reachable. Try /health or your /api/* routes.");
+  res.send("✅ API root is reachable. Try /api/health or /api/ready.");
 });
 
 // Static uploads (if you use them)
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // ───────────────────────────────────────────────────────────────
-// API routes — unchanged
+// API routes
 // ───────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
