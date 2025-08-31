@@ -5,8 +5,8 @@
 
       <!-- Theme toggle -->
       <button class="bb-btn bb-btn--ghost bb-toggle" @click="toggleTheme" :aria-pressed="isDark.toString()">
-        <span v-if="isDark">🌙 Dark</span>
-        <span v-else>☀️ Light</span>
+        <span v-if="isDark">☀️ Light</span>
+        <span v-else>🌙 Dark</span>
       </button>
     </header>
 
