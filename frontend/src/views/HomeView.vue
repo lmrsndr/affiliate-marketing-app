@@ -31,7 +31,7 @@
 
       <div class="hero-mark">
         <img
-          src="/android-chrome-512x512.png"
+          src="/icon-512x512.png"
           alt="BundleBee logo"
           width="256"
           height="256"
@@ -44,7 +44,7 @@
     <!-- BUNDLEBEE SECTION -->
     <section class="bundlebee-brand bb-card bb-card--hover">
       <img
-        src="/android-chrome-192x192.png"
+        src="/icon-192x192.png"
         alt="BundleBee emblem"
         class="brand-mark"
         width="96"
