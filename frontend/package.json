@@ -1,5 +1,7 @@
 {
   "name": "affiliate-marketing-app",
+  "private": true,
+  "type": "module",
   "version": "1.0.0",
   "description": "An affiliate marketing app with a modern and engaging UI",
   "main": "src/main.js",

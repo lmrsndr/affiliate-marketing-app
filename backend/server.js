@@ -15,7 +15,8 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const nodemailer = require("nodemailer");
 const path = require("path");
 const mongoose = require("mongoose"); // for /api/ready
-const assertCsp = require("./middleware/assertCsp"); // ✅ new middleware
+const assertCsp = require("./middleware/assertCsp"); // ✅ tight CSP dev safeguard
+const requireVerified2FA = require("./middleware/requireVerified2FA"); // ✅ 2FA gate for protected APIs
 
 // ───────────────────────────────────────────────────────────────
 // ENV + sanity checks
@@ -26,6 +27,7 @@ const {
   SESSION_SECRET,
   JWT_SECRET,
   JWT_REFRESH_SECRET,
+  JWT_OTP_SECRET,                 // optional (falls back to JWT_SECRET if not set)
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
@@ -35,7 +37,6 @@ const {
   PASS_ZOHO,
 } = process.env;
 
-// Safe PORT coercion
 const rawPort = process.env.PORT;
 const PORT =
   typeof rawPort === "string" && rawPort.trim() !== "" && !Number.isNaN(Number(rawPort))
@@ -206,27 +207,10 @@ passport.deserializeUser(async (id, done) => {
 // ───────────────────────────────────────────────────────────────
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "https://bundlebee.co.uk/login?error=unauthorized",
-    session: false,
-  }),
-  async (req, res) => {
+// ✅ 2FA-aware Google OAuth callback
+(() => {
+  const handler = async (req, res) => {
     try {
-      const accessToken = jwt.sign(
-        {
-          id: req.user._id,
-          email: req.user.email,
-          role: req.user.role,
-          twoFAVerified: req.user.twoFAVerified || false,
-        },
-        JWT_SECRET,
-        { expiresIn: "15m" }
-      );
-
-      const refreshToken = jwt.sign({ id: req.user._id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
-
       const cookieOpts = {
         httpOnly: true,
         secure: IS_PROD,
@@ -235,16 +219,50 @@ app.get(
         path: "/",
       };
 
+      // If this account requires 2FA (app or verified email 2FA), DO NOT issue real cookies yet.
+      const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.verified);
+
+      if (twoFAEnabled) {
+        const otpTicket = jwt.sign(
+          { sub: String(req.user._id), purpose: "otp" },
+          JWT_OTP_SECRET || JWT_SECRET,
+          { expiresIn: 300 } // 5 minutes
+        );
+        res.cookie("otpTicket", otpTicket, { ...cookieOpts, maxAge: 5 * 60 * 1000 });
+        return res.redirect("https://bundlebee.co.uk/setup-2fa?oauth=1");
+      }
+
+      // Otherwise: no 2FA required -> issue cookies with mfaVerified:true
+      const accessToken = jwt.sign(
+        { id: req.user._id, email: req.user.email, role: req.user.role, mfaVerified: true },
+        JWT_SECRET,
+        { expiresIn: "15m" }
+      );
+      const refreshToken = jwt.sign(
+        { id: req.user._id, role: req.user.role, mfaVerified: true },
+        JWT_REFRESH_SECRET,
+        { expiresIn: "7d" }
+      );
+
       res.cookie("authCookie", accessToken, { ...cookieOpts, maxAge: 15 * 60 * 1000 });
       res.cookie("refreshCookie", refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
-      return res.redirect(`https://bundlebee.co.uk/auth/callback?accessToken=${accessToken}`);
+      return res.redirect("https://bundlebee.co.uk/auth/callback");
     } catch (err) {
       console.error("❌ OAuth error:", err);
       return res.redirect("https://bundlebee.co.uk/login?error=server");
     }
-  }
-);
+  };
+
+  app.get(
+    "/auth/google/callback",
+    passport.authenticate("google", {
+      failureRedirect: "https://bundlebee.co.uk/login?error=unauthorized",
+      session: false,
+    }),
+    handler
+  );
+})();
 
 app.get("/auth/logout", (req, res) => {
   const cookieOpts = {
@@ -293,14 +311,17 @@ app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // API routes
 app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/admin", require("./routes/adminRoutes"));
+
+// ✅ Enforce verified 2FA for admin & partner APIs
+app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
+app.use("/api/partner", requireVerified2FA, require("./routes/partnerRoutes"));
+
 app.use("/api/boxes", require("./routes/boxRoutes"));
 app.use("/api", require("./routes/subscriptionRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/quiz", require("./routes/quizRoutes"));
 app.use("/api/interactions", require("./routes/interactionRoutes"));
-app.use("/api/partner", require("./routes/partnerRoutes"));
 app.use("/api/2fa-email", require("./routes/email2FARoutes"));
 app.use("/api/2fa", require("./routes/twoFARoutes"));
 app.use("/api/accounting", require("./routes/accountingRoutes"));
