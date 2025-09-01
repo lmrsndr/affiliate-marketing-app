@@ -1,0 +1,6 @@
+{"level":"info","message":"✅ MongoDB Connected to bundlebee...","timestamp":"2025-09-01T19:34:12.422Z"}
+{"level":"info","message":"MongoDB Query - Collection: users, Method: createIndex, Query: {\"email\":1}","timestamp":"2025-09-01T19:34:12.462Z"}
+{"level":"info","message":"MongoDB Query - Collection: categories, Method: createIndex, Query: {\"name\":1}","timestamp":"2025-09-01T19:34:12.581Z"}
+{"level":"info","message":"MongoDB Query - Collection: users, Method: createIndex, Query: {\"googleId\":1}","timestamp":"2025-09-01T19:34:12.904Z"}
+{"level":"info","message":"MongoDB Query - Collection: users, Method: createIndex, Query: {\"email\":1}","timestamp":"2025-09-01T19:34:12.937Z"}
+{"level":"info","message":"MongoDB Query - Collection: users, Method: createIndex, Query: {\"googleId\":1}","timestamp":"2025-09-01T19:34:12.972Z"}
