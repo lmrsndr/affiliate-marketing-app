@@ -3,11 +3,59 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const sendEmail = require("../utils/sendEmail");
 
-// ✅ Send Email 2FA Code (Improved Formatting & Deliverability)
+const {
+  NODE_ENV = "development",
+  COOKIE_DOMAIN = ".bundlebee.co.uk",
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
+} = process.env;
+
+const IS_PROD = NODE_ENV === "production";
+
+// Cookie helpers
+function cookieOpts(base = {}) {
+  const common = {
+    httpOnly: true,
+    secure: IS_PROD,
+    sameSite: IS_PROD ? "None" : "Lax",
+    path: "/",
+  };
+  if (IS_PROD) common.domain = COOKIE_DOMAIN;
+  return { ...common, ...base };
+}
+function setCookie(res, name, value, opts) {
+  res.cookie(name, value, cookieOpts(opts));
+}
+function clearCookie(res, name) {
+  res.clearCookie(name, cookieOpts());
+}
+
+// After 2FA verified, rotate to full tokens (mfaVerified: true)
+function rotateToFullTokens(res, user) {
+  const accessToken = jwt.sign(
+    { id: user._id, email: user.email, role: user.role, mfaVerified: true },
+    JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  const refreshToken = jwt.sign(
+    { id: user._id, role: user.role, mfaVerified: true },
+    JWT_REFRESH_SECRET,
+    { expiresIn: "7d" }
+  );
+  // Clear any otpTicket
+  clearCookie(res, "otpTicket");
+  // Set new real cookies
+  setCookie(res, "authCookie", accessToken, { maxAge: 15 * 60 * 1000 });
+  setCookie(res, "refreshCookie", refreshToken, { maxAge: 7 * 24 * 60 * 60 * 1000 });
+  return { accessToken, refreshToken };
+}
+
+// ✅ Send Email 2FA Code
 exports.sendEmail2FACode = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    // req.user is provided by otpOrRefresh middleware (a Mongoose doc)
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const hashed = crypto.createHash("sha256").update(code).digest("hex");
@@ -19,7 +67,6 @@ exports.sendEmail2FACode = async (req, res) => {
       failedAttempts: 0,
       lastFailedAt: null,
     };
-
     await user.save();
 
     await sendEmail({
@@ -51,17 +98,13 @@ exports.sendEmail2FACode = async (req, res) => {
   }
 };
 
-// ✅ Verify 2FA Email Code (unchanged)
+// ✅ Verify Email 2FA Code
 exports.verifyEmail2FACode = async (req, res) => {
-  const { code, trustThisDevice } = req.body;
-
+  const { code, trustThisDevice } = req.body || {};
   try {
-    if (!req.user?._id || !["user", "admin", "partner"].includes(req.user.role)) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user || !user.email2FA) {
+    const user = req.user; // from otpOrRefresh
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    if (!user.email2FA) {
       return res.status(400).json({ message: "No 2FA code found. Please request a new one." });
     }
 
@@ -70,12 +113,8 @@ exports.verifyEmail2FACode = async (req, res) => {
     if (user.email2FA.failedAttempts >= 5) {
       const cooldownMs = 15 * 60 * 1000;
       const lastFailed = new Date(user.email2FA.lastFailedAt || 0);
-      const diff = now - lastFailed;
-
-      if (diff < cooldownMs) {
-        return res.status(429).json({
-          message: "Too many failed attempts. Please wait before trying again.",
-        });
+      if (now - lastFailed < cooldownMs) {
+        return res.status(429).json({ message: "Too many failed attempts. Please wait before trying again." });
       } else {
         user.email2FA.failedAttempts = 0;
         user.email2FA.lastFailedAt = null;
@@ -88,91 +127,51 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     const submittedHash = crypto.createHash("sha256").update(code).digest("hex");
     const storedHash = user.email2FA.code;
-    const match = storedHash === submittedHash;
-
-    console.log("🔐 Code Match:", match);
+    const match = storedHash && storedHash === submittedHash;
 
     if (!match) {
       user.email2FA.failedAttempts = (user.email2FA.failedAttempts || 0) + 1;
       user.email2FA.lastFailedAt = now;
       await user.save();
-      return res.status(401).json({ message: "Invalid code (match failed)" });
+      return res.status(401).json({ message: "Invalid code" });
     }
 
-    req.session.awaiting2FA = false;
-    req.session.twoFAVerified = true;
-    console.log("✅ Session updated: 2FA passed");
-
+    // Mark verified in DB for email 2FA
     user.email2FA.verified = true;
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
-
+    user.interactions = user.interactions || [];
     user.interactions.push({
       action: "2fa_verified",
       details: { method: "email", ip: req.ip },
       timestamp: now,
     });
-
     await user.save();
 
-    const accessToken = jwt.sign(
-      {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        twoFAVerified: true,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    // Rotate to full cookies with mfaVerified:true
+    const tokens = rotateToFullTokens(res, user);
 
-    res.cookie("authCookie", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      domain: ".bundlebee.co.uk",
-      path: "/",
-      maxAge: 15 * 60 * 1000,
-    });
-
+    // Optional: trust device for 30d
     if (trustThisDevice) {
       const trustToken = jwt.sign(
         { id: user._id, purpose: "trustedDevice" },
-        process.env.JWT_SECRET,
+        JWT_SECRET,
         { expiresIn: "30d" }
       );
-
-      res.cookie("trustedDevice", trustToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "None",
-        domain: ".bundlebee.co.uk",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      });
+      setCookie(res, "trustedDevice", trustToken, { maxAge: 30 * 24 * 60 * 60 * 1000 });
     }
 
-    res.cookie("twoFACookie", true, {
-      httpOnly: false,
-      secure: true,
-      sameSite: "None",
-      domain: ".bundlebee.co.uk",
-      path: "/",
-      maxAge: 30 * 60 * 1000,
-    });
-
-    return res.status(200).json({ message: "2FA verified", accessToken });
-
+    return res.status(200).json({ message: "2FA verified", accessToken: tokens.accessToken });
   } catch (err) {
     console.error("❌ 2FA verification failed:", err);
     return res.status(500).json({ message: "2FA verification failed" });
   }
 };
 
-// ✅ Resend Email 2FA Code (unchanged)
+// ✅ Resend Email 2FA Code
 exports.resendEmail2FACode = async (req, res) => {
   try {
-    req.user = await User.findById(req.user._id);
+    // req.user already resolved by middleware
     return exports.sendEmail2FACode(req, res);
   } catch (err) {
     console.error("❌ Failed to resend 2FA email:", err);
