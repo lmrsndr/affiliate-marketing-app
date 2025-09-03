@@ -72,6 +72,7 @@ async function checkAuthState() {
 
 // ✅ Routes
 const routes = [
+  { path: '/setup-2fa', name: 'Setup2FA', component: () => import('../views/Auth/Verify2FA.vue'), meta: { public: true } },
   { path: "/", component: HomeView },
   { path: "/partner/:id", component: PartnerDetails },
   { path: "/questionnaire", component: SubscriptionQuestionnaire, meta: { requiresAuth: true } },
