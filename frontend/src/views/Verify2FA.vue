@@ -1,215 +1,131 @@
 <template>
-  <div class="bb-container">
-    <div class="card">
-      <h1 class="title">Two-Factor Verification</h1>
+  <div class="verify-2fa-page">
+    <section class="bb-card verify-card">
+      <h2>Two-Factor Verification</h2>
+      <p>We’ve sent a 6-digit code to your email.</p>
 
-      <p class="hint">
-        We've sent a <strong>6-digit code</strong> to your email.
-      </p>
+      <button class="bb-btn bb-btn--ghost" :disabled="sending" @click="sendCode">
+        {{ sending ? 'Sending…' : 'Resend code' }}
+      </button>
 
-      <div class="actions">
-        <button class="bb-btn" :disabled="sending || verifying" @click="sendCode">
-          {{ sending ? 'Sending…' : 'Resend code' }}
-        </button>
-      </div>
+      <hr class="bb-sep" />
 
-      <form class="form" @submit.prevent="verify">
-        <label class="label" for="code">Enter 6-digit code</label>
+      <form novalidate @submit.prevent="onSubmit" ref="formEl">
+        <label for="otp">Enter 6-digit code</label>
+
         <input
-          id="code"
+          id="otp"
+          name="otp"
           v-model="code"
-          class="input"
-          type="text"
-          inputmode="numeric"
+          @input="onInput"
           autocomplete="one-time-code"
+          inputmode="numeric"
           maxlength="6"
-          placeholder="123456"
-          @input="digitsOnly"
+          pattern="[0-9]{6}"
+          title="Enter exactly 6 digits (0-9)"
+          class="bb-input"
+          placeholder="••••••"
+          required
         />
 
-        <p v-if="error" class="error">{{ error }}</p>
-        <p v-if="info" class="info">{{ info }}</p>
-
         <label class="trust">
-          <input type="checkbox" v-model="trustThisDevice" />
+          <input type="checkbox" v-model="trustDevice" />
           Trust this device for 30 days
         </label>
 
-        <button class="bb-btn bb-btn--primary" type="submit" :disabled="verifying">
-          {{ verifying ? 'Verifying…' : 'Verify & Continue' }}
+        <button type="submit" class="bb-btn bb-btn--primary" :disabled="submitting">
+          {{ submitting ? 'Verifying…' : 'Verify & Continue' }}
         </button>
+
+        <p v-if="error" class="bb-error" role="alert">{{ error }}</p>
+        <p v-if="success" class="bb-success" role="status">{{ success }}</p>
       </form>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import API from '@/api.js' // uses your existing axios wrapper (withCredentials enabled)
+import { ref } from 'vue';
+import API from '../api.js';
 
-const router = useRouter()
+const code = ref('');
+const trustDevice = ref(true);
+const sending = ref(false);
+const submitting = ref(false);
+const error = ref('');
+const success = ref('');
+const formEl = ref(null);
 
-const code = ref('')
-const sending = ref(false)
-const verifying = ref(false)
-const error = ref('')
-const info = ref('')
-const trustThisDevice = ref(true)
+/** Keep only digits and clamp to 6 */
+const onInput = () => {
+  code.value = (code.value || '').replace(/\D/g, '').slice(0, 6);
+};
 
-/**
- * Keep the input numeric and max 6 chars
- */
-const digitsOnly = () => {
-  code.value = (code.value || '').replace(/\D+/g, '').slice(0, 6)
-}
-
-/**
- * Trigger email send using otpTicket cookie (no JWT required).
- * Backend route (added earlier): POST /api/auth/2fa-email/send-ticket
- */
 const sendCode = async () => {
-  error.value = ''
-  info.value = ''
-  sending.value = true
+  error.value = '';
+  success.value = '';
+  sending.value = true;
   try {
-    await API.post('/auth/2fa-email/send-ticket')
-    info.value = 'A new 6-digit code has been sent to your email.'
+    // hit your email 2FA send endpoint; auth cookie or otpTicket should be present
+    await API.post('/2fa-email/send');
+    success.value = 'Code sent. Please check your inbox/spam.';
   } catch (e) {
-    error.value = e?.response?.data?.message || 'Failed to send the code. Please try again.'
+    error.value = e?.response?.data?.message || 'Failed to send code.';
   } finally {
-    sending.value = false
+    sending.value = false;
   }
-}
+};
 
-/**
- * Verify the 6-digit code.
- * Backend route (added earlier): POST /api/auth/verify-otp
- * Request body: { token: <string>, trustThisDevice: <boolean> }
- * On success, server rotates cookies (authCookie/refreshCookie) and clears otpTicket.
- */
-const verify = async () => {
-  error.value = ''
-  info.value = ''
+const onSubmit = async () => {
+  error.value = '';
+  success.value = '';
 
-  if (!/^\d{6}$/.test(code.value)) {
-    error.value = 'Please enter a valid 6-digit code.'
-    return
+  // Manual validation in place of native pattern bubbles
+  const sanitized = (code.value || '').replace(/\D/g, '');
+  if (sanitized.length !== 6) {
+    error.value = 'Please enter exactly 6 digits.';
+    return;
   }
 
-  verifying.value = true
+  submitting.value = true;
   try {
-    await API.post('/auth/verify-otp', {
-      token: code.value,
-      trustThisDevice: !!trustThisDevice.value
-    })
+    // verify endpoint (expects a string code)
+    const { data } = await API.post('/auth/verify-otp', {
+      code: String(sanitized),
+      trustThisDevice: !!trustDevice.value,
+    });
 
-    // Fetch who we are and where to go
-    const { data } = await API.get('/auth/status')
-    if (!data?.isAuthenticated) {
-      error.value = 'Verification succeeded but session was not established. Please sign in again.'
-      return
+    // Optionally call trust-device endpoint after success (if your BE needs it)
+    if (trustDevice.value) {
+      try { await API.post('/auth/trust-device'); } catch (_) {}
     }
 
-    const role = data?.user?.role || 'user'
-    // Route by role (tweak if your paths differ)
-    if (role === 'admin') {
-      router.push('/admin')
-    } else if (role === 'partner') {
-      router.push('/partner')
-    } else {
-      router.push('/dashboard')
-    }
-  } catch (e) {
-    error.value = e?.response?.data?.message || 'Invalid or expired code. Please try again.'
-  } finally {
-    verifying.value = false
-  }
-}
+    success.value = 'Verified! Redirecting…';
 
-onMounted(() => {
-  // Auto-send a code on page load if possible
-  sendCode()
-})
+    // Minimal redirect logic: send admins/partners to dashboards, else home
+    const payload = data?.user || {};
+    const role = payload.role || 'user';
+    const target =
+      role === 'admin'   ? '/admin'   :
+      role === 'partner' ? '/partner' :
+      '/';
+
+    setTimeout(() => {
+      window.location.assign(target);
+    }, 600);
+  } catch (e) {
+    error.value = e?.response?.data?.message || 'Invalid code. Please try again.';
+  } finally {
+    submitting.value = false;
+  }
+};
 </script>
 
 <style scoped>
-.bb-container {
-  display: grid;
-  place-items: center;
-  min-height: 60vh;
-  padding: 1.25rem;
-}
-.card {
-  width: 100%;
-  max-width: 560px;
-  background: var(--bb-surface, #111);
-  border: 1px solid var(--bb-border, #222);
-  border-radius: 12px;
-  padding: 1.25rem;
-  box-shadow: var(--bb-shadow-md, 0 8px 24px rgba(0,0,0,.18));
-}
-.title {
-  margin: 0 0 .5rem;
-  font-size: clamp(1.25rem, 2.2vw, 1.6rem);
-}
-.hint {
-  color: var(--bb-muted, #9aa);
-}
-.actions {
-  margin: .75rem 0 1rem;
-}
-.form {
-  display: grid;
-  gap: .75rem;
-}
-.label {
-  font-weight: 600;
-}
-.input {
-  font-size: 1.25rem;
-  letter-spacing: .12em;
-  text-align: center;
-  padding: .75rem .9rem;
-  border-radius: 10px;
-  border: 1px solid var(--bb-border, #222);
-  background: var(--bb-bg, #0b0b0b);
-  color: var(--bb-text, #eef);
-}
-.input::placeholder { color: #6a6a6a; }
-.error {
-  color: #ff6b6b;
-  font-weight: 600;
-}
-.info {
-  color: var(--bb-muted, #9aa);
-}
-.trust {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  color: var(--bb-muted, #9aa);
-}
-.bb-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .4rem;
-  border-radius: 10px;
-  padding: .6rem .9rem;
-  border: 1px solid var(--bb-border, #222);
-  background: var(--bb-surface, #131313);
-  color: var(--bb-text, #eef);
-  cursor: pointer;
-}
-.bb-btn:disabled {
-  opacity: .6;
-  cursor: not-allowed;
-}
-.bb-btn--primary {
-  background: var(--bb-primary, #39d353);
-  color: #0b0b0b;
-  border-color: transparent;
-  font-weight: 800;
-}
+.verify-card { max-width: 520px; margin: 2rem auto; padding: 1.5rem; }
+.bb-input { width:100%; padding:.75rem .875rem; font-size:1.05rem; letter-spacing:.35em; text-align:center; }
+.bb-sep { margin:1rem 0; border:none; border-top:1px solid var(--bb-border); }
+.trust { display:flex; align-items:center; gap:.5rem; margin:.75rem 0 1rem; }
+.bb-error { color:#ff5d5d; margin-top:.5rem; }
+.bb-success { color:#19c37d; margin-top:.5rem; }
 </style>
