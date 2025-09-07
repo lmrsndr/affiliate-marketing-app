@@ -223,15 +223,6 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
       const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.verified);
 
       if (twoFAEnabled) {
-    // ✅ Short-lived pre-2FA refresh cookie to allow /api/2fa-* endpoints (not a full session)
-    const preRefresh = jwt.sign(
-      { id: req.user._id, role: req.user.role, mfaVerified: false, purpose: "pre2fa" },
-      JWT_REFRESH_SECRET,
-      { expiresIn: "30m" }
-    );
-    res.cookie("refreshCookie", preRefresh, { ...cookieOpts, maxAge: 30 * 60 * 1000 });
-
-
         const otpTicket = jwt.sign(
           { sub: String(req.user._id), purpose: "otp" },
           JWT_OTP_SECRET || JWT_SECRET,
