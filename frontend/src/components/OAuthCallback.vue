@@ -14,7 +14,7 @@
 <script>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import API from "../api.js";
+import API, { getNextAuthStep, checkAuthStatus, setAccessToken } from "../api.js";
 
 export default {
   name: "OAuthCallback",
@@ -26,66 +26,81 @@ export default {
 
     onMounted(async () => {
       try {
-        // ✅ Check authentication status
-        const { data } = await API.get("/auth/status");
-        if (!data.isAuthenticated) throw new Error("Not authenticated");
+        // ✅ Ask server what the next step is (no client-side guessing)
+        const next = await getNextAuthStep(); // { step: "login" | "verify-2fa" | "setup-2fa" | "dashboard", redirectTo? }
 
-        const { user: authUser, accessToken } = data;
-
-        // ✅ Save access token
-        sessionStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("accessToken", accessToken);
-        API.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-
-        // ✅ If not 2FA verified, redirect to 2FA screen and store timestamp
-        if (!authUser.twoFAVerified) {
-          console.warn("🔐 2FA not verified. Redirecting to verification...");
-          sessionStorage.setItem("awaiting2FA", Date.now().toString());
-          return router.push("/verify-2fa");
+        if (!next || !next.step) {
+          throw new Error("Invalid /auth/next response");
         }
 
-        // ✅ Load user profile if 2FA already verified
-        const profile = await API.get("/user/profile");
-        user.value = {
-          email: profile.data.email,
-          profilePicture: profile.data.profilePicture || defaultAvatar,
-        };
+        if (next.step === "login") {
+          return router.replace({ path: "/login", query: { reason: "callback-session-missing" } });
+        }
+        if (next.step === "verify-2fa") {
+          return router.replace("/verify-2fa");
+        }
+        if (next.step === "setup-2fa") {
+          return router.replace("/setup-2fa");
+        }
 
-        // ✅ Role-based redirect
+        // step === "dashboard": confirm status, then route by role
+        const status = await checkAuthStatus(); // { isAuthenticated, user, accessToken? }
+        if (!status?.isAuthenticated) {
+          return router.replace({ path: "/login", query: { reason: "status-mismatch" } });
+        }
+
+        // If backend returned a short-lived access token, keep it in memory only
+        if (status?.accessToken) setAccessToken(status.accessToken);
+
+        // Optional: load profile to show avatar while we redirect
+        try {
+          const profile = await API.get("/user/profile");
+          user.value = {
+            email: profile.data.email,
+            profilePicture: profile.data.profilePicture || defaultAvatar,
+          };
+        } catch (e) {
+          console.warn("Profile not ready yet, continuing redirect.", e?.response?.data || e.message);
+        }
+
+        // Role-based redirect
+        const role = status?.user?.role;
         setTimeout(() => {
-          if (authUser.role === "admin") router.push("/admin-dashboard");
-          else if (authUser.role === "partner") router.push("/partner-dashboard");
-          else router.push("/dashboard");
-        }, 1000);
+          if (role === "admin") router.replace("/admin-dashboard");
+          else if (role === "partner") router.replace("/partner-dashboard");
+          else router.replace("/dashboard");
+        }, 600);
       } catch (err) {
-        console.error("❌ OAuth flow failed:", err);
-        router.push("/login");
+        console.error("❌ OAuth callback failed:", err?.response?.data || err.message);
+        router.replace({ path: "/login", query: { reason: "callback-error" } });
       }
     });
 
     const uploadProfilePicture = async (event) => {
-      const file = event.target.files[0];
+      const file = event.target.files?.[0];
       if (!file) return;
 
       const formData = new FormData();
       formData.append("profilePicture", file);
 
       try {
-        const response = await API.post("/user/upload-profile-picture", formData, {
+        const { data } = await API.post("/user/upload-profile-picture", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        user.value.profilePicture = response.data.profilePicture;
+        if (!user.value) user.value = {};
+        user.value.profilePicture = data.profilePicture || defaultAvatar;
       } catch (error) {
-        console.error("❌ Error uploading profile picture:", error);
+        console.error("❌ Error uploading profile picture:", error?.response?.data || error.message);
       }
     };
 
     const deleteProfilePicture = async () => {
       try {
         await API.delete("/user/delete-profile-picture");
+        if (!user.value) user.value = {};
         user.value.profilePicture = defaultAvatar;
       } catch (error) {
-        console.error("❌ Error deleting profile picture:", error);
+        console.error("❌ Error deleting profile picture:", error?.response?.data || error.message);
       }
     };
 

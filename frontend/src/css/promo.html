@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BundleBee Promos — Prototype</title>
+
+  <!-- Your brand styles -->
+  <link rel="stylesheet" href="brand.css">
+  <link rel="stylesheet" href="light.css">
+  <link rel="stylesheet" href="dark.css">
+
+  <style>
+    /* ====== Base layout for the promo stage ====== */
+    .stage {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      aspect-ratio: 16 / 9;
+      margin: 2rem auto;
+      border-radius: var(--bb-radius);
+      border: 1px solid var(--bb-border);
+      overflow: hidden;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--bb-bg) 80%, var(--bb-primary-light) 20%), var(--bb-bg));
+      box-shadow: var(--bb-shadow-md);
+      isolation: isolate;
+    }
+    .hud {
+      max-width: 1280px; margin: 0 auto 1rem;
+      display: grid; gap: .75rem;
+      grid-template-columns: 1fr auto auto auto auto;
+      align-items: center;
+      padding: 0 1rem;
+    }
+    .hud .left { display:flex; gap:.75rem; align-items:center; }
+    .hud .right { display:flex; gap:.5rem; justify-self:end; }
+
+    /* ====== Reusable layers ====== */
+    .layer {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    .center {
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* ====== Logo lockup ====== */
+    .logo-lockup {
+      position: absolute; left: 1rem; top: 1rem; z-index: 30;
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .35rem .6rem;
+      border-radius: var(--bb-radius-pill);
+      background: color-mix(in srgb, var(--bb-surface) 80%, transparent);
+      border: 1px solid var(--bb-border);
+      box-shadow: var(--bb-shadow-sm);
+    }
+    .logo-title { font-family: var(--bb-font-heading); font-weight: 800; letter-spacing: .2px; }
+
+    /* ====== CTA button that appears at end ====== */
+    .cta-wrap {
+      position: absolute; right: 1rem; bottom: 1rem; z-index: 40;
+      display: flex; gap: .5rem; align-items: center;
+      opacity: 0; transform: translateY(8px); transition: all var(--bb-duration) var(--bb-ease);
+    }
+    .cta-wrap.show { opacity: 1; transform: translateY(0); }
+
+    /* ====== Offer cards feed (for 10s spot) ====== */
+    .feed {
+      position: absolute; inset: 0; display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 160px;
+      gap: 16px; padding: 72px 32px 32px;
+      opacity: 0; transform: translateY(12px); transition: opacity 320ms var(--bb-ease), transform 320ms var(--bb-ease);
+    }
+    .feed.show { opacity: 1; transform: translateY(0); }
+    .tile {
+      border: 1px solid var(--bb-border);
+      border-radius: var(--bb-radius);
+      background: var(--bb-surface);
+      box-shadow: var(--bb-shadow-sm);
+      overflow: hidden; display: grid; grid-template-rows: 1fr auto auto;
+      transform: translateZ(0);
+      transition: transform var(--bb-duration) var(--bb-ease), box-shadow var(--bb-duration) var(--bb-ease);
+    }
+    .tile:hover { transform: translateY(-2px); box-shadow: var(--bb-shadow-md); }
+    .tile__media { background: color-mix(in srgb, var(--bb-accent) 20%, var(--bb-surface)); }
+    .tile__title { padding: .6rem .75rem; font-weight: 700; }
+    .tile__cta { padding: .6rem .75rem; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--bb-border); }
+    .tile__cta .bb-btn { pointer-events: auto; }
+
+    /* Cursor for click moment */
+    .cursor {
+      position: absolute; width: 28px; height: 28px; z-index: 35; opacity: 0;
+      background: radial-gradient(circle at 30% 30%, #fff 0 40%, transparent 41%), conic-gradient(from 45deg, transparent 0 75%, var(--bb-text) 75% 100%);
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--bb-primary-light) 60%, transparent);
+      transition: opacity 200ms var(--bb-ease), transform 250ms var(--bb-ease);
+    }
+    .cursor.show { opacity: 1; }
+
+    /* ====== Honeycomb ====== */
+    .comb {
+      --cells: 16;
+      position: absolute; inset: 0; display: grid; place-items: center;
+      pointer-events: none; opacity: 0; transform: scale(.95);
+      transition: opacity 380ms var(--bb-ease), transform 380ms var(--bb-ease);
+    }
+    .comb.show { opacity: 1; transform: scale(1); }
+    .comb svg { width: min(80vmin, 880px); filter: drop-shadow(var(--bb-shadow-md)); }
+
+    .comb .cell {
+      fill: color-mix(in srgb, var(--bb-primary-light) 12%, #fff);
+      stroke: var(--bb-border); stroke-width: 1.25;
+      transition: transform 240ms var(--bb-ease), fill 240ms var(--bb-ease);
+    }
+    .comb .cell.filled {
+      fill: color-mix(in srgb, var(--bb-primary-light) 22%, #fff);
+      transform: scale(1.02);
+    }
+
+    /* ====== OST captions ====== */
+    .caption {
+      position: absolute; left: 50%; bottom: 12%;
+      transform: translateX(-50%) translateY(8px);
+      background: color-mix(in srgb, var(--bb-surface) 88%, transparent);
+      border: 1px solid var(--bb-border);
+      color: var(--bb-text);
+      padding: .5rem .75rem; border-radius: var(--bb-radius-pill);
+      font-weight: 700; box-shadow: var(--bb-shadow-sm);
+      opacity: 0; transition: opacity 260ms var(--bb-ease), transform 260ms var(--bb-ease);
+    }
+    .caption.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ====== 30s dashboard mock ====== */
+    .dashboard {
+      position: absolute; inset: 0; padding: 72px 32px 32px; display: grid; gap: 16px;
+      grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; opacity: 0; transform: translateY(8px);
+      transition: opacity 320ms var(--bb-ease), transform 320ms var(--bb-ease);
+    }
+    .dashboard.show { opacity: 1; transform: translateY(0); }
+    .panel { composes: bb-card; border:1px solid var(--bb-border); border-radius: var(--bb-radius); background: var(--bb-surface); box-shadow: var(--bb-shadow-sm); }
+    .panel { padding: 1rem; }
+    .panel h4 { margin: 0 0 .5rem 0; font-family: var(--bb-font-heading); }
+
+    /* Simple growth graph */
+    .graph {
+      height: 100%; border-radius: var(--bb-radius); background: linear-gradient(180deg, color-mix(in srgb, var(--bb-primary-light) 14%, var(--bb-surface)), var(--bb-surface));
+      position: relative; overflow: hidden;
+    }
+    .graph .line {
+      position: absolute; left: 0; bottom: 0; height: 3px; background: var(--bb-primary-dark);
+      width: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--bb-primary-dark) 30%, transparent);
+      transition: width 900ms var(--bb-ease);
+    }
+    .graph.grow .line { width: 100%; }
+
+    /* ====== Bee path sweep for transitions ====== */
+    .bee-sweep {
+      position: absolute; inset: -20% -10% -10% -20%; z-index: 25; pointer-events: none;
+      opacity: 0; transform: translateX(-20%) rotate(-6deg);
+      background: radial-gradient(60% 80% at 30% 50%, color-mix(in srgb, var(--bb-primary-light) 30%, transparent), transparent 70%);
+      filter: blur(24px);
+      transition: opacity 300ms var(--bb-ease), transform 600ms var(--bb-ease);
+    }
+    .bee-sweep.show { opacity: 1; transform: translateX(0) rotate(0); }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .cursor, .feed, .comb, .caption, .dashboard, .bee-sweep { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top controls -->
+  <div class="hud">
+    <div class="left">
+      <label>
+        <select id="spot" class="bb-select" style="min-width: 220px">
+          <option value="10s_discover">10s — Discover More</option>
+          <option value="30s_client">30s — Client</option>
+        </select>
+      </label>
+      <label>
+        <select id="audience" class="bb-select" style="min-width: 180px">
+          <option value="client">Audience: Client</option>
+          <option value="partner">Audience: Partner</option>
+        </select>
+      </label>
+      <button id="themeToggle" class="bb-btn bb-btn--ghost">Toggle Light/Dark</button>
+    </div>
+    <div class="right">
+      <button id="play" class="bb-btn bb-btn--primary">Play</button>
+      <button id="pause" class="bb-btn bb-btn--ghost">Pause</button>
+      <button id="restart" class="bb-btn bb-btn--secondary">Restart</button>
+    </div>
+  </div>
+
+  <!-- Stage -->
+  <div id="stage" class="stage">
+
+    <!-- Logo lockup -->
+    <div class="logo-lockup bb-card">
+      <svg class="bb-logo" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="8" cy="12" r="5" class="bundle"></circle>
+        <path d="M14 8c3 0 5 2 5 4s-2 4-5 4c-1 0-2-.5-3-1.2" class="bee" fill="var(--bb-primary-light)"></path>
+      </svg>
+      <span class="logo-title">BundleBee</span>
+    </div>
+
+    <!-- BEHIND: bee sweep glow -->
+    <div id="sweep" class="bee-sweep layer" aria-hidden="true"></div>
+
+    <!-- 10s: feed tiles -->
+    <div id="feed" class="feed layer" aria-hidden="true">
+      <!-- 9 tiles -->
+      <div class="tile">
+        <div class="tile__media"></div>
+        <div class="tile__title">Partner Alpha</div>
+        <div class="tile__cta">
+          <span class="text-muted">Curated offer</span>
+          <button class="bb-btn bb-btn--ghost">View offer</button>
+        </div>
+      </div>
+      <div class="tile">
+        <div class="tile__media"></div>
+        <div class="tile__title">Brand Beta</div>
+        <div class="tile__cta">
+          <span class="text-muted">Editor’s pick</span>
+          <button class="bb-btn bb-btn--ghost">View offer</button>
+        </div>
+      </div>
+      <div class="tile">
+        <div class="tile__media"></div>
+        <div class="tile__title">Store Gamma</div>
+        <div class="tile__cta">
+          <span class="text-muted">Popular</span>
+          <button class="bb-btn bb-btn--ghost">View offer</button>
+        </div>
+      </div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Alpha+</div><div class="tile__cta"><span class="text-muted">Trending</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Beta Shoes</div><div class="tile__cta"><span class="text-muted">Curated</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Gamma Tech</div><div class="tile__cta"><span class="text-muted">New</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Delta Home</div><div class="tile__cta"><span class="text-muted">Deal</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Epsilon</div><div class="tile__cta"><span class="text-muted">Pick</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+      <div class="tile"><div class="tile__media"></div><div class="tile__title">Zeta Labs</div><div class="tile__cta"><span class="text-muted">Popular</span><button class="bb-btn bb-btn--ghost">View offer</button></div></div>
+    </div>
+
+    <!-- Cursor -->
+    <div id="cursor" class="cursor layer" aria-hidden="true"></div>
+
+    <!-- 10s + 30s: Honeycomb -->
+    <div id="comb" class="comb layer" aria-hidden="true">
+      <!-- Simple hex grid SVG -->
+      <svg viewBox="0 0 600 520" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <!-- Hexagon generator (12 cells) -->
+        <g id="hexes"></g>
+      </svg>
+    </div>
+
+    <!-- OST caption -->
+    <div id="caption" class="caption" aria-live="polite"></div>
+
+    <!-- 30s: Dashboard mock -->
+    <div id="dash" class="dashboard layer" aria-hidden="true">
+      <div class="panel" style="grid-column:1/2; grid-row:1/2;">
+        <h4>Curated Offers</h4>
+        <div class="bb-partner-grid">
+          <div class="bb-partner">
+            <div class="bb-partner__title">Alpha Headphones</div>
+            <div class="bb-partner__meta">Editor’s Pick · 4.8 ★</div>
+            <div class="bb-partner__cta"><button class="bb-btn bb-btn--ghost">View offer</button></div>
+          </div>
+          <div class="bb-partner">
+            <div class="bb-partner__title">Beta Running</div>
+            <div class="bb-partner__meta">Rewards +20</div>
+            <div class="bb-partner__cta"><button class="bb-btn bb-btn--ghost">View offer</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="grid-column:2/3; grid-row:1/3;">
+        <h4>Rewards</h4>
+        <div class="graph" id="graph">
+          <div class="line"></div>
+        </div>
+      </div>
+      <div class="panel" style="grid-column:1/2; grid-row:2/3;">
+        <h4>Badges</h4>
+        <div class="bb-badge">⭐ Explorer</div>
+        <div class="bb-badge">🏅 Saver</div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div id="cta" class="cta-wrap">
+      <button id="ctaBtn" class="bb-btn bb-btn--primary">Join free</button>
+    </div>
+  </div>
+
+  <script>
+    /* ====== Utility: build a simple honeycomb ====== */
+    (function buildHexes(){
+      const g = document.querySelector('#hexes');
+      if (!g) return;
+      const cols = 4, rows = 3, size = 64;
+      const w = size * Math.sqrt(3), h = size * 1.5;
+      const ox = 100, oy = 60;
+
+      function hexPath(cx, cy, r) {
+        const pts = [];
+        for (let i=0;i<6;i++){
+          const a = Math.PI/3 * i + Math.PI/6;
+          pts.push([cx + r*Math.cos(a), cy + r*Math.sin(a)]);
+        }
+        return "M" + pts.map(p=>p.join(",")).join(" L ") + " Z";
+      }
+
+      let idx=0;
+      for (let r=0; r<rows; r++){
+        for (let c=0; c<cols; c++){
+          const x = ox + c * w + (r%2 ? w/2 : 0);
+          const y = oy + r * h;
+          const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+          path.setAttribute("d", hexPath(x, y, size));
+          path.setAttribute("class","cell");
+          path.setAttribute("data-i", idx++);
+          g.appendChild(path);
+        }
+      }
+    })();
+
+    /* ====== State ====== */
+    const el = {
+      stage: document.getElementById('stage'),
+      feed: document.getElementById('feed'),
+      cursor: document.getElementById('cursor'),
+      comb: document.getElementById('comb'),
+      caption: document.getElementById('caption'),
+      dash: document.getElementById('dash'),
+      cta: document.getElementById('cta'),
+      ctaBtn: document.getElementById('ctaBtn'),
+      sweep: document.getElementById('sweep'),
+      graph: document.getElementById('graph'),
+      spot: document.getElementById('spot'),
+      audience: document.getElementById('audience'),
+      play: document.getElementById('play'),
+      pause: document.getElementById('pause'),
+      restart: document.getElementById('restart'),
+      theme: document.getElementById('themeToggle'),
+    };
+
+    let timers = [];
+    let playing = false;
+    let startTime = null;
+    let pausedAt = 0;
+
+    function clearTimers(){
+      timers.forEach(t => clearTimeout(t));
+      timers = [];
+    }
+    function resetAll(){
+      clearTimers();
+      playing = false;
+      startTime = null; pausedAt = 0;
+
+      // reset visuals
+      el.feed.classList.remove('show');
+      el.cursor.style.opacity = 0;
+      el.cursor.style.transform = 'translate(0,0)';
+      el.comb.classList.remove('show');
+      el.caption.classList.remove('show');
+      el.caption.textContent = '';
+      el.dash.classList.remove('show');
+      el.cta.classList.remove('show');
+      el.sweep.classList.remove('show');
+      el.graph.classList.remove('grow');
+
+      // reset CTA text by audience
+      const aud = el.audience.value;
+      el.ctaBtn.textContent = aud === 'partner' ? 'Become a partner' : 'Join free';
+    }
+
+    function schedule(delay, fn){
+      const id = setTimeout(fn, delay);
+      timers.push(id);
+    }
+
+    /* ====== Audience text helpers ====== */
+    const CAPTIONS = {
+      discover: {
+        client: ["Discover brands you’ll love.","Curated offers. Real rewards.","Click. Earn. Enjoy."],
+        partner:["Put your brand where buyers look.","Curated placement. Real clicks.","Reach. Engage. Grow."]
+      },
+      cta: {
+        client: "BundleBee — Smarter shopping.",
+        partner:"BundleBee — Buzzing with growth."
+      },
+      _30_client: [
+        "The internet’s noisy.",
+        "Finding the good stuff shouldn’t be this hard.",
+        "Meet BundleBee — curated offers from brands you’ll actually like.",
+        "Explore confidently, click with purpose, and earn rewards as you go.",
+        "Your feed, your pace — without the mess.",
+        "BundleBee. Smarter shopping, rewarding clicks."
+      ]
+    };
+
+    /* ====== TIMELINES ======
+       Each function fully orchestrates its spot.
+    */
+
+    // 10s — Discover More
+    function play10sDiscover(){
+      const aud = el.audience.value;
+      resetAll();
+
+      // Total: 10,000 ms
+      // 0–400ms: sweep intro
+      schedule(0, ()=> el.sweep.classList.add('show'));
+
+      // 0–1500ms: feed shows
+      schedule(100, ()=> el.feed.classList.add('show'));
+
+      // 200ms: caption 1
+      schedule(200, ()=>{
+        el.caption.textContent = CAPTIONS.discover[aud][0];
+        el.caption.classList.add('show');
+      });
+      // 1500ms: caption 1 out
+      schedule(1500, ()=> el.caption.classList.remove('show'));
+
+      // 1500–2600ms: cursor appears & moves to a tile button
+      schedule(1500, ()=>{
+        el.cursor.classList.add('show');
+        moveCursorToButton(1);
+      });
+
+      // 1700ms: caption 2
+      schedule(1700, ()=>{
+        el.caption.textContent = CAPTIONS.discover[aud][1];
+        el.caption.classList.add('show');
+      });
+      // 3200ms: caption 2 out
+      schedule(3200, ()=> el.caption.classList.remove('show'));
+
+      // 2300ms: click pop (simulate)
+      schedule(2300, ()=>{
+        el.cursor.style.transform += ' scale(0.92)';
+        setTimeout(()=> el.cursor.style.transform = el.cursor.style.transform.replace(' scale(0.92)',''), 120);
+      });
+
+      // 3500–7000ms: honeycomb fills
+      schedule(3500, ()=> {
+        el.comb.classList.add('show');
+        // progressively fill cells
+        const cells = Array.from(document.querySelectorAll('.comb .cell'));
+        cells.forEach((cell, i) => {
+          schedule(380 + i*120, ()=> cell.classList.add('filled'));
+        });
+      });
+
+      // 3600ms: caption 3
+      schedule(3600, ()=>{
+        el.caption.textContent = CAPTIONS.discover[aud][2];
+        el.caption.classList.add('show');
+      });
+      // 7000ms: caption out
+      schedule(7000, ()=> el.caption.classList.remove('show'));
+
+      // 7200ms: sweep fades
+      schedule(7200, ()=> el.sweep.classList.remove('show'));
+
+      // 7600ms: CTA in
+      schedule(7600, ()=> el.cta.classList.add('show'));
+
+      // 7700ms: final tagline (beneath CTA timing)
+      schedule(7700, ()=>{
+        el.caption.textContent = CAPTIONS.cta[aud];
+        el.caption.classList.add('show');
+      });
+
+      // 10,000ms end
+    }
+
+    // 30s — Client version
+    function play30sClient(){
+      resetAll();
+
+      const lines = CAPTIONS._30_client;
+
+      // 0–3000ms Hook: noisy ads (simulate with feed messy then wipe)
+      schedule(0, ()=>{
+        el.feed.classList.add('show');
+        // jitter tiles a bit to feel messy
+        document.querySelectorAll('.tile').forEach((t,i)=>{
+          t.style.transform = `translateY(${(i%3-1)*6}px) rotate(${(i%2?1:-1)*.6}deg)`;
+        });
+        el.caption.textContent = lines[0];
+        el.caption.classList.add('show');
+      });
+
+      // 3000ms: Problem line
+      schedule(3000, ()=>{
+        el.caption.textContent = lines[1];
+      });
+
+      // 5200ms: Clean wipe into BB interface
+      schedule(5200, ()=>{
+        el.sweep.classList.add('show');
+        el.feed.classList.remove('show');
+      });
+
+      // 7000ms: BB dashboard in
+      schedule(7000, ()=>{
+        el.sweep.classList.remove('show');
+        el.dash.classList.add('show');
+        el.caption.textContent = lines[2];
+      });
+
+      // 12000ms: Product moments (rewards, badges)
+      schedule(12000, ()=>{
+        el.caption.textContent = lines[3];
+        el.graph.classList.add('grow');
+      });
+
+      // 19000ms: Ease line
+      schedule(19000, ()=>{
+        el.caption.textContent = lines[4];
+      });
+
+      // 24000ms: Transition to honeycomb
+      schedule(24000, ()=>{
+        el.dash.classList.remove('show');
+        el.comb.classList.add('show');
+        // fill cells
+        const cells = Array.from(document.querySelectorAll('.comb .cell'));
+        cells.forEach((cell, i) => {
+          schedule(120 + i*100, ()=> cell.classList.add('filled'));
+        });
+      });
+
+      // 26000ms: CTA + Tag
+      schedule(26000, ()=>{
+        el.cta.classList.add('show');
+        el.caption.textContent = lines[5];
+      });
+
+      // End at 30,000 ms
+    }
+
+    /* ====== Cursor helper ====== */
+    function moveCursorToButton(tileIndex=1){
+      const tile = document.querySelectorAll('.tile')[tileIndex];
+      if (!tile) return;
+      const btn = tile.querySelector('.bb-btn');
+      if (!btn) return;
+      const stageRect = el.stage.getBoundingClientRect();
+      const r = btn.getBoundingClientRect();
+      const x = r.left - stageRect.left + r.width/2 - 14;
+      const y = r.top - stageRect.top + r.height/2 - 14;
+      el.cursor.style.transform = `translate(${x}px, ${y}px)`;
+      el.cursor.classList.add('show');
+    }
+
+    /* ====== Playback controls ====== */
+    function play(){
+      if (playing) return;
+      playing = true;
+      const id = el.spot.value;
+      const aud = el.audience.value;
+      document.body.classList.toggle('theme-dark', document.body.classList.contains('theme-dark')); // keep as is
+
+      if (id === '10s_discover'){
+        play10sDiscover();
+      } else if (id === '30s_client'){
+        // force audience to client captions for this one
+        el.audience.value = 'client';
+        play30sClient();
+      }
+    }
+    function pause(){
+      // simple pause: stop future timers; remember elapsed
+      if (!playing) return;
+      playing = false;
+      const now = performance.now();
+      pausedAt = now - (startTime || now);
+      clearTimers();
+    }
+    function restart(){
+      resetAll();
+      playing = false;
+      startTime = performance.now();
+      pausedAt = 0;
+    }
+
+    el.play.addEventListener('click', ()=> { restart(); play(); });
+    el.pause.addEventListener('click', pause);
+    el.restart.addEventListener('click', restart);
+    el.theme.addEventListener('click', ()=> {
+      document.body.classList.toggle('theme-dark');
+      document.body.classList.toggle('theme-light');
+    });
+
+    // Set sane defaults
+    restart();
+  </script>
+</body>
+</html>

@@ -1,131 +1,199 @@
 <template>
-  <div class="verify-2fa-page">
-    <section class="bb-card verify-card">
-      <h2>Two-Factor Verification</h2>
-      <p>We’ve sent a 6-digit code to your email.</p>
+  <section class="twofa-wrap">
+    <h2 class="twofa-title">Two-Factor Verification</h2>
+    <p class="twofa-sub">We’ve sent a 6-digit code to your email.</p>
 
-      <button class="bb-btn bb-btn--ghost" :disabled="sending" @click="sendCode">
-        {{ sending ? 'Sending…' : 'Resend code' }}
+    <div class="twofa-actions">
+      <button class="bb-btn bb-btn--ghost" @click="resend" :disabled="resending">
+        {{ resending ? "Sending…" : "Resend code" }}
       </button>
+    </div>
 
-      <hr class="bb-sep" />
+    <div class="twofa-form" role="form" aria-labelledby="twofa-label">
+      <label id="twofa-label" for="otp" class="twofa-label">Enter 6-digit code</label>
 
-      <form novalidate @submit.prevent="onSubmit" ref="formEl">
-        <label for="otp">Enter 6-digit code</label>
+      <input
+        id="otp"
+        ref="otpEl"
+        v-model="code"
+        class="twofa-input"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        maxlength="6"
+        pattern="[0-9]{6}"
+        :aria-invalid="code.length > 0 && !isCodeValid"
+        @input="sanitize"
+        @keyup.enter="submit"
+      />
 
-        <input
-          id="otp"
-          name="otp"
-          v-model="code"
-          @input="onInput"
-          autocomplete="one-time-code"
-          inputmode="numeric"
-          maxlength="6"
-          pattern="[0-9]{6}"
-          title="Enter exactly 6 digits (0-9)"
-          class="bb-input"
-          placeholder="••••••"
-          required
-        />
+      <p v-if="error" class="twofa-error" role="alert">{{ error }}</p>
 
-        <label class="trust">
-          <input type="checkbox" v-model="trustDevice" />
-          Trust this device for 30 days
+      <div class="twofa-remember">
+        <label class="bb-checkbox">
+          <input type="checkbox" v-model="remember" />
+          <span>Remember this device for 30 days</span>
         </label>
+      </div>
 
-        <button type="submit" class="bb-btn bb-btn--primary" :disabled="submitting">
-          {{ submitting ? 'Verifying…' : 'Verify & Continue' }}
-        </button>
-
-        <p v-if="error" class="bb-error" role="alert">{{ error }}</p>
-        <p v-if="success" class="bb-success" role="status">{{ success }}</p>
-      </form>
-    </section>
-  </div>
+      <button
+        type="button"
+        class="bb-btn bb-btn--primary twofa-submit"
+        :disabled="submitting || !isCodeValid"
+        @click="submit"
+      >
+        {{ submitting ? "Verifying…" : "Verify & Continue" }}
+      </button>
+    </div>
+  </section>
 </template>
 
-<script setup>
-import { ref } from 'vue';
-import API from '../api.js';
+<script>
+import { ref, computed, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import API, { getNextAuthStep } from "@/api.js";
 
-const code = ref('');
-const trustDevice = ref(true);
-const sending = ref(false);
-const submitting = ref(false);
-const error = ref('');
-const success = ref('');
-const formEl = ref(null);
+export default {
+  name: "Verify2FA",
+  setup() {
+    const router = useRouter();
+    const route  = useRoute();
 
-/** Keep only digits and clamp to 6 */
-const onInput = () => {
-  code.value = (code.value || '').replace(/\D/g, '').slice(0, 6);
-};
+    const code = ref("");
+    const remember = ref(false);
+    const error = ref("");
+    const submitting = ref(false);
+    const resending = ref(false);
+    const otpEl = ref(null);
 
-const sendCode = async () => {
-  error.value = '';
-  success.value = '';
-  sending.value = true;
-  try {
-    // hit your email 2FA send endpoint; auth cookie or otpTicket should be present
-    await API.post('/2fa-email/send');
-    success.value = 'Code sent. Please check your inbox/spam.';
-  } catch (e) {
-    error.value = e?.response?.data?.message || 'Failed to send code.';
-  } finally {
-    sending.value = false;
-  }
-};
+    // Read and sanitize ?redirect=...
+    const rawRedirect = String(route.query.redirect || "");
+    function sanitizeRedirect(path) {
+      if (!path) return "";
+      try { path = decodeURIComponent(path); } catch (_) {}
+      // internal paths only, no protocol, no scheme-relative, must start with /
+      if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("//")) return "";
+      if (!path.startsWith("/")) return "";
+      // avoid looping back into auth pages
+      const blocked = ["/login", "/auth/callback", "/verify-2fa", "/setup-2fa"];
+      if (blocked.includes(path)) return "";
+      return path;
+    }
+    const safeRedirect = sanitizeRedirect(rawRedirect);
 
-const onSubmit = async () => {
-  error.value = '';
-  success.value = '';
+    const isCodeValid = computed(() => /^\d{6}$/.test(code.value));
 
-  // Manual validation in place of native pattern bubbles
-  const sanitized = (code.value || '').replace(/\D/g, '');
-  if (sanitized.length !== 6) {
-    error.value = 'Please enter exactly 6 digits.';
-    return;
-  }
-
-  submitting.value = true;
-  try {
-    // verify endpoint (expects a string code)
-    const { data } = await API.post('/auth/verify-otp', {
-      code: String(sanitized),
-      trustThisDevice: !!trustDevice.value,
-    });
-
-    // Optionally call trust-device endpoint after success (if your BE needs it)
-    if (trustDevice.value) {
-      try { await API.post('/auth/trust-device'); } catch (_) {}
+    function sanitize(e) {
+      // Keep only digits, max 6
+      const v = (e?.target?.value ?? code.value).replace(/\D/g, "").slice(0, 6);
+      code.value = v;
+      if (e?.target && e.target.value !== v) e.target.value = v;
+      if (error.value) error.value = "";
     }
 
-    success.value = 'Verified! Redirecting…';
+    async function submit() {
+      error.value = "";
+      sanitize();
 
-    // Minimal redirect logic: send admins/partners to dashboards, else home
-    const payload = data?.user || {};
-    const role = payload.role || 'user';
-    const target =
-      role === 'admin'   ? '/admin'   :
-      role === 'partner' ? '/partner' :
-      '/';
+      if (!isCodeValid.value) {
+        error.value = "Please enter the 6-digit code.";
+        otpEl.value?.focus();
+        return;
+      }
 
-    setTimeout(() => {
-      window.location.assign(target);
-    }, 600);
-  } catch (e) {
-    error.value = e?.response?.data?.message || 'Invalid code. Please try again.';
-  } finally {
-    submitting.value = false;
-  }
+      submitting.value = true;
+      try {
+        // Verify the code; backend binds it to the session via HttpOnly cookies/ticket.
+        await API.post("/2fa/verify", {
+          token: code.value,
+          rememberDevice: !!remember.value,
+        });
+
+        // Ask server where to go next; prefer our safe redirect if present.
+        const { step, redirectTo } = await getNextAuthStep();
+        if (step === "dashboard") {
+          return router.replace(safeRedirect || redirectTo || "/dashboard");
+        }
+        if (step === "setup-2fa") {
+          return router.replace({ path: "/setup-2fa", query: route.query });
+        }
+        if (step === "verify-2fa") {
+          // Server still says we need to verify (code invalid/expired)
+          error.value = "That code didn’t verify. Please try again.";
+          return;
+        }
+        // Fallback
+        router.replace({ path: "/login", query: { redirect: safeRedirect || "/" } });
+      } catch (e) {
+        const msg =
+          e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          "Invalid or expired code. Please try again.";
+        error.value = msg;
+        otpEl.value?.focus();
+      } finally {
+        submitting.value = false;
+      }
+    }
+
+    async function resend() {
+      error.value = "";
+      resending.value = true;
+      try {
+        await API.post("/2fa/resend");
+      } catch (e) {
+        const msg =
+          e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          "Couldn’t resend the code. Please wait a moment and try again.";
+        error.value = msg;
+      } finally {
+        resending.value = false;
+      }
+    }
+
+    onMounted(() => {
+      // Autofocus for fast entry
+      requestAnimationFrame(() => otpEl.value?.focus());
+    });
+
+    return {
+      code,
+      remember,
+      error,
+      submitting,
+      resending,
+      isCodeValid,
+      sanitize,
+      submit,
+      resend,
+      otpEl,
+    };
+  },
 };
 </script>
 
 <style scoped>
-.verify-card { max-width: 520px; margin: 2rem auto; padding: 1.5rem; }
-.bb-input { width:100%; padding:.75rem .875rem; font-size:1.05rem; letter-spacing:.35em; text-align:center; }
-.bb-sep { margin:1rem 0; border:none; border-top:1px solid var(--bb-border); }
-.trust { display:flex; align-items:center; gap:.5rem; margin:.75rem 0 1rem; }
-.bb-error { color:#ff5d5d; margin-top:.5rem; }
-.bb-success { color:#19c37d; margin-top:.5rem; }
+.twofa-wrap { max-width: 520px; margin: 2rem auto; padding: 1.25rem; }
+.twofa-title { font-weight: 800; margin: 0 0 .25rem 0; }
+.twofa-sub { margin: 0 0 1rem 0; opacity: .8; }
+.twofa-actions { margin-bottom: 1rem; }
+.twofa-form { display: grid; gap: .75rem; }
+.twofa-label { font-weight: 600; }
+.twofa-input {
+  font-size: 1.125rem;
+  letter-spacing: .12em;
+  text-align: center;
+  padding: .75rem 1rem;
+  border-radius: var(--bb-radius, 10px);
+  border: 1px solid var(--bb-border, #333);
+  background: var(--bb-surface, #121212);
+  color: var(--bb-text, #fff);
+}
+.twofa-input[aria-invalid="true"] { outline: 2px solid #ff9a9a; }
+.twofa-error { color: #ff9a9a; font-weight: 600; }
+.twofa-remember { margin-top: .25rem; }
+.twofa-submit { margin-top: .25rem; }
 </style>
