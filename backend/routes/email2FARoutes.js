@@ -8,22 +8,35 @@ const email2FAController = require('../controllers/email2FAController');
 // If it's not present in your codebase, we gracefully no-op.
 let attachUserIfPresent = (_req, _res, next) => next();
 try {
-  // This middleware should decode authCookie/refreshCookie and set req.user/req.auth.
-  // See: middleware/attachUserIfPresent.js
+  // Should decode authCookie/refreshCookie and set req.user/req.auth (best-effort).
   attachUserIfPresent = require('../middleware/attachUserIfPresent');
 } catch (_) { /* no-op if not found */ }
+
+/* -------------------------
+   Small hardening: block if 2FA already verified
+-------------------------- */
+const pending2FAOnly = (req, res, next) => {
+  // allow either flag, depending on your schema / JWT claims
+  const alreadyVerified =
+    Boolean(req.user?.twoFAVerified) ||
+    Boolean(req.auth?.mfaVerified)   ||
+    Boolean(req.session?.twoFAVerified);
+
+  if (alreadyVerified) {
+    return res.status(409).json({ msg: "2FA already verified." });
+  }
+  return next();
+};
 
 /* -------------------------
    Resolve controller handlers (backward compatible)
 -------------------------- */
 function pick(...fns) {
-  for (const fn of fns) {
-    if (typeof fn === 'function') return fn;
-  }
+  for (const fn of fns) if (typeof fn === 'function') return fn;
   return null;
 }
 
-// Prefer new generic names; fall back to your older names if needed.
+// Prefer new generic names; fall back to older ones if needed.
 const createContextHandler = pick(
   email2FAController.createContext,
   email2FAController.createOtpContext,
@@ -48,7 +61,7 @@ const verifyHandler = pick(
   email2FAController.verifyEmail2FACode
 );
 
-// Small wrapper to fail loudly if a handler is missing
+// Fail loudly if a handler is missing
 const requireHandler = (handlerName, fn) => (req, res, next) => {
   if (typeof fn !== 'function') {
     return res.status(501).json({ msg: `Not Implemented: ${handlerName} handler missing in email2FAController` });
@@ -65,13 +78,28 @@ const requireHandler = (handlerName, fn) => (req, res, next) => {
 router.post(
   '/context',
   attachUserIfPresent,
+  pending2FAOnly,
   requireHandler('createContext', createContextHandler)
 );
 
 // These endpoints are available in the "pending 2FA" state,
 // authenticated by otpTicket OR a pre-2FA refreshCookie (as enforced by otpOrRefresh).
-router.post('/send',   otpOrRefresh, requireHandler('sendCode',   sendHandler));
-router.post('/resend', otpOrRefresh, requireHandler('resendCode', resendHandler));
-router.post('/verify', otpOrRefresh, requireHandler('verifyCode', verifyHandler));
+router.post('/send',
+  otpOrRefresh,
+  pending2FAOnly,
+  requireHandler('sendCode', sendHandler)
+);
+
+router.post('/resend',
+  otpOrRefresh,
+  pending2FAOnly,
+  requireHandler('resendCode', resendHandler)
+);
+
+router.post('/verify',
+  otpOrRefresh,
+  pending2FAOnly,
+  requireHandler('verifyCode', verifyHandler)
+);
 
 module.exports = router;
