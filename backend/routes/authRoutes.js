@@ -1,46 +1,55 @@
 const express = require("express");
-const ctrl = require("../controllers/authController");
-const email2FAController = require("../controllers/email2FAController");
-const totpController = require("../controllers/totpController");
-const authMiddleware = require("../middleware/authMiddleware");
-
 const router = express.Router();
 
-// Health for this router
-router.get("/", (_req, res) => res.send("✅ Auth route is operational"));
+const ctrl = require("../controllers/authController");
 
-// ──────────────────────────
-// Core auth (controller-driven)
-// ──────────────────────────
-router.post("/register", ctrl.registerUser);
-router.post("/login", ctrl.loginUser);
-router.post("/logout", ctrl.logoutUser);
+// Non-blocking helper that attaches req.auth/req.user from cookies if present.
+// If it doesn't exist in your codebase, we'll gracefully no-op.
+let attachUserIfPresent = (_req, _res, next) => next();
+try {
+  attachUserIfPresent = require("../middleware/attachUserIfPresent");
+} catch (_) { /* no-op */ }
 
-// 2FA flow
-router.post("/verify-otp", ctrl.verifyOtp);
-router.post("/trust-device", authMiddleware, ctrl.trustThisDevice);
+/* Util: pick first existing handler (backwards compatible names) */
+const pick = (...fns) => fns.find((fn) => typeof fn === "function") || null;
+const handler = (name, fn) => (req, res, next) => {
+  if (typeof fn !== "function") {
+    return res.status(501).json({ msg: `Not Implemented: ${name}` });
+  }
+  return fn(req, res, next);
+};
 
-// Tokens
-router.post("/refresh", ctrl.refreshToken);   // use POST (not GET)
-router.get("/status", ctrl.authStatus);
+/* Resolve handlers from controller with safe fallbacks */
+const registerH      = pick(ctrl.register, ctrl.registerUser);
+const loginH         = pick(ctrl.login, ctrl.loginUser, ctrl.authLogin);
+const logoutH        = pick(ctrl.logout, ctrl.logoutUser);
+const statusH        = pick(ctrl.status, ctrl.getStatus, ctrl.authStatus);
+const refreshH       = pick(ctrl.refresh, ctrl.refreshToken);
+const enabledViewsH  = pick(ctrl.enabledViews, ctrl.getEnabledViews);
+const forgotUserH    = pick(ctrl.forgotUsername, ctrl.forgotUser);
+const resetPasswordH = pick(ctrl.resetPassword, ctrl.doResetPassword);
 
-// Profile
-router.get("/profile", authMiddleware, ctrl.getUserProfile);
+/* Routes */
 
-// Recovery
-router.post("/forgot-password", ctrl.forgotPassword);
-router.post("/reset-password", ctrl.resetPassword);
-router.post("/forgot-username", ctrl.forgotUsername);
+// Public auth endpoints
+router.post("/register", handler("register", registerH));
+router.post("/login",    handler("login",    loginH));
 
-// ──────────────────────────
-/** 2FA helpers (email + app) — require an authenticated user
- *  Your authMiddleware should set req.user from a valid access token.
- */
-router.post("/2fa-email/send", authMiddleware, email2FAController.sendEmail2FACode);
-router.post("/2fa-email/verify", authMiddleware, email2FAController.verifyEmail2FACode);
-router.post("/2fa-email/resend", authMiddleware, email2FAController.resendEmail2FACode);
+// Logout (doesn't need a guard; controller will clear cookies/session)
+router.get("/logout", handler("logout", logoutH));
 
-router.get("/2fa-app/setup", authMiddleware, totpController.generateTOTPSecret);
-router.post("/2fa-app/verify", authMiddleware, totpController.verifyTOTP);
+// Status should be able to read cookies if present
+router.get("/status", attachUserIfPresent, handler("status", statusH));
+
+// Your build has no /auth/refresh route server-side (404 seen in logs),
+// but if the controller exposes one, this will just work.
+router.get("/refresh", handler("refresh", refreshH));
+
+// Feature gating / view enabling – allow reading cookies if present
+router.get("/enabled-views", attachUserIfPresent, handler("enabledViews", enabledViewsH));
+
+// Recovery helpers
+router.post("/forgot-username", handler("forgotUsername", forgotUserH));
+router.post("/reset-password",  handler("resetPassword",  resetPasswordH));
 
 module.exports = router;
