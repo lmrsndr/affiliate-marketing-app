@@ -215,7 +215,7 @@ export const disable2FA  = async () => (await API.post("/2fa/disable")).data;
 // Current explicit namespaces used by new routes:
 export const email2FA = {
   context: async () => (await API.post("/auth/2fa-email/context")).data || {},
-  send:    async () => (await API.post("/auth/2fa-email/send")).data,
+  send:    async () => (await API.post("/auth/2fa-email/resend")).data,
   resend:  async () => (await API.post("/auth/2fa-email/resend")).data,
   verify:  async ({ code, trustThisDevice = false }) =>
     (await API.post("/auth/2fa-email/verify", { code, trustThisDevice })).data,

@@ -82,7 +82,7 @@ export default {
       sending.value = true;
       try {
         await ensureContext();
-        await API.post("/2fa-email/send");
+        await API.post("/2fa-email/resend");
         info.value = "Code sent. Please check your email.";
       } catch (e) {
         const msg = e?.response?.data?.msg || e?.response?.data?.message || e.message || "Failed to send code.";
