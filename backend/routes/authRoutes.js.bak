@@ -23,6 +23,7 @@ if (typeof ctrl.resetPassword === "function") {
 }
 try {
   const { getNext } = require("../controllers/authNextController");
+  if (typeof getNext === "function") router.get("/next", attachUserIfPresent, getNext);
 } catch {}
 
 module.exports = router;
