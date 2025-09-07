@@ -1,13 +1,10 @@
-// backend/routes/authNextRoutes.js
+// routes/authNextRoutes.js
 const express = require("express");
 const router = express.Router();
+const attachUserIfPresent = require("../middleware/attachUserIfPresent");
 const { getNext } = require("../controllers/authNextController");
 
-// If you have a "deserialize user" or "optional auth" middleware, use it here.
-// Example:
-// const { attachUserIfPresent } = require("../middleware/auth");
-// router.get("/next", attachUserIfPresent, getNext);
-
-router.get("/next", getNext);
+// Best-effort user attach; no blocking
+router.get("/next", attachUserIfPresent, getNext);
 
 module.exports = router;
