@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const { submitQuiz, getQuizResult } = require("../controllers/quizController");
-const authenticateToken = require("../middleware/authMiddleware");
+const requireVerified2FA = require("../middleware/requireVerified2FA");
 
 // ✅ Submit Quiz – Authenticated users only
-router.post("/", authenticateToken, submitQuiz);
+router.post("/", requireVerified2FA, submitQuiz);
 
 // ✅ Get Quiz Result – Authenticated users can only access their own results
-router.get("/:id", authenticateToken, async (req, res) => {
+router.get("/:id", requireVerified2FA, async (req, res) => {
   try {
     const result = await getQuizResult(req.params.id);
 

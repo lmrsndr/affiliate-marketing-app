@@ -9,7 +9,7 @@ const {
   deleteBox,
 } = require("../controllers/boxController");
 
-const authMiddleware = require("../middleware/authMiddleware");
+const requireVerified2FA = require("../middleware/requireVerified2FA");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const scrapeWebsiteMetadata = require("../utils/scrapeWebsite");
 
@@ -39,7 +39,7 @@ router.get("/:id", getBoxById);
 // ✅ Admin-only: Create a subscription box
 router.post(
   "/",
-  authMiddleware,
+  requireVerified2FA,
   roleMiddleware("admin"),
   (req, res, next) => {
     if (!req.body.name || !req.body.category) {
@@ -51,13 +51,13 @@ router.post(
 );
 
 // ✅ Admin-only: Update a subscription box
-router.put("/:id", authMiddleware, roleMiddleware("admin"), updateBox);
+router.put("/:id", requireVerified2FA, roleMiddleware("admin"), updateBox);
 
 // ✅ Admin-only: Delete a subscription box
-router.delete("/:id", authMiddleware, roleMiddleware("admin"), deleteBox);
+router.delete("/:id", requireVerified2FA, roleMiddleware("admin"), deleteBox);
 
 // ✅ Admin-only: Auto-scrape metadata from partner’s website
-router.post("/scrape", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+router.post("/scrape", requireVerified2FA, roleMiddleware("admin"), async (req, res) => {
   try {
     const { website } = req.body;
 

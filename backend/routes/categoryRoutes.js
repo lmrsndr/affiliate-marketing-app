@@ -1,6 +1,6 @@
 const express = require("express");
 const Category = require("../models/Category");
-const authMiddleware = require("../middleware/authMiddleware");
+const requireVerified2FA = require("../middleware/requireVerified2FA");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
 });
 
 // ✅ Admin-only: Create new category
-router.post("/", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+router.post("/", requireVerified2FA, roleMiddleware("admin"), async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -41,7 +41,7 @@ router.post("/", authMiddleware, roleMiddleware("admin"), async (req, res) => {
 });
 
 // ✅ Admin-only: Delete category by ID
-router.delete("/:id", authMiddleware, roleMiddleware("admin"), async (req, res) => {
+router.delete("/:id", requireVerified2FA, roleMiddleware("admin"), async (req, res) => {
   try {
     const { id } = req.params;
 

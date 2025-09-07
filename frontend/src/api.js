@@ -1,15 +1,16 @@
 // Build tag for quick diagnostics
-window.__BB_API_BUILD = "api.js safe 2025-09-07";
+window.__BB_API_BUILD = "api.js unified 2025-09-07";
 console.info("[BB] api.js loaded:", window.__BB_API_BUILD);
 
 import axios from "axios";
 
-// ───────────────────────────────────────────────────────────────
-// Base config
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Base config
+────────────────────────────────────────────────────────────── */
 if (!import.meta.env.VITE_API_URL) {
   console.warn("⚠️ Missing VITE_API_URL in environment variables!");
 }
+// IMPORTANT: VITE_API_URL should point to your backend API root, e.g. https://api.bundlebee.co.uk/api
 const safeBaseURL = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk/api").replace(/\/+$/, "");
 
 const API = axios.create({
@@ -18,9 +19,9 @@ const API = axios.create({
 });
 export default API;
 
-// ───────────────────────────────────────────────────────────────
-/** Token helpers */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Token helpers (header token only; server mainly uses cookies)
+────────────────────────────────────────────────────────────── */
 export function setAccessToken(token, { persist = "both" } = {}) {
   if (!token) {
     sessionStorage.removeItem("accessToken");
@@ -41,9 +42,9 @@ function clearAccessToken() {
   delete API.defaults.headers.common["Authorization"];
 }
 
-// ───────────────────────────────────────────────────────────────
-/** Interceptors */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Interceptors
+────────────────────────────────────────────────────────────── */
 API.interceptors.request.use(
   (config) => {
     if (!config.headers) config.headers = {};
@@ -57,6 +58,7 @@ API.interceptors.request.use(
 );
 
 let isRefreshing = false;
+
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -65,15 +67,15 @@ API.interceptors.response.use(
     const original = error?.config || {};
     const path = window.location.pathname;
 
-    // 403 → MFA routing (no loops)
+    // 403 → MFA/TOTP routing (avoid loops)
     if (status === 403) {
       const onVerify = path === "/verify-2fa" || path === "/setup-2fa";
       if (reason === "MFA_REQUIRED" || reason === "EMAIL_2FA_REQUIRED" || reason === "TOTP_REQUIRED") {
         if (!onVerify) window.location.assign("/verify-2fa");
         return Promise.reject(error);
       }
-      if (reason === "TOTP_REQUIRED_SETUP" && path !== "/setup-2fa") {
-        window.location.assign("/setup-2fa");
+      if (reason === "TOTP_REQUIRED_SETUP") {
+        if (path !== "/setup-2fa") window.location.assign("/setup-2fa");
         return Promise.reject(error);
       }
     }
@@ -91,7 +93,7 @@ API.interceptors.response.use(
           original.headers.Authorization = "Bearer " + data.accessToken;
           return API.request(original);
         }
-      } catch (e) {
+      } catch (_e) {
         clearAccessToken();
         const isPublic = ["/", "/login", "/register"].includes(window.location.pathname);
         if (!isPublic) window.location.assign("/login?reason=session-expired");
@@ -104,19 +106,18 @@ API.interceptors.response.use(
   }
 );
 
-// ───────────────────────────────────────────────────────────────
-/** Auth navigation helper used by OAuthCallback.vue */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Auth navigation helper (used by OAuthCallback.vue)
+   Prefers /auth/next; falls back to /auth/status if missing
+────────────────────────────────────────────────────────────── */
 export async function getNextAuthStep() {
-  // First try /auth/next if backend implements it
   try {
     const { data } = await API.get("/auth/next");
     if (data && data.step) return data; // { step, redirectTo? }
-  } catch (_) {
+  } catch {
     // fall through to /auth/status
   }
 
-  // Fallback: derive from /auth/status
   try {
     const status = await checkAuthStatus();
     if (!status || !status.isAuthenticated) return { step: "login", redirectTo: "/login" };
@@ -124,7 +125,7 @@ export async function getNextAuthStep() {
     const mfa = !!(status.mfaVerified || user.twoFAVerified);
     if (!mfa) return { step: "verify-2fa", redirectTo: "/verify-2fa" };
     const role = user.role || "user";
-    if (role === "admin") return { step: "dashboard", redirectTo: "/admin-dashboard" };
+    if (role === "admin")   return { step: "dashboard", redirectTo: "/admin-dashboard" };
     if (role === "partner") return { step: "dashboard", redirectTo: "/partner-dashboard" };
     return { step: "dashboard", redirectTo: "/dashboard" };
   } catch {
@@ -132,15 +133,15 @@ export async function getNextAuthStep() {
   }
 }
 
-// ───────────────────────────────────────────────────────────────
-/** Public Auth APIs */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Public Auth APIs
+────────────────────────────────────────────────────────────── */
 export async function checkAuthStatus() {
   try {
     const res = await API.get("/auth/status");
     if (res && res.data && res.data.accessToken) setAccessToken(res.data.accessToken, { persist: "both" });
     return res.data;
-  } catch (err) {
+  } catch {
     return { isAuthenticated: false };
   }
 }
@@ -160,35 +161,34 @@ export async function loginUser(credentials) {
   return res.data;
 }
 export async function logoutUser() {
-  await API.post("/auth/logout", {}); // POST avoids cache/proxy oddities
+  await API.post("/auth/logout", {}); // POST avoids caches/proxies
   setAccessToken(null);
   window.location.assign("/login");
 }
 
-// ───────────────────────────────────────────────────────────────
-/** Dashboards */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Dashboards
+────────────────────────────────────────────────────────────── */
 export const fetchUserDashboard  = async () => (await API.get("/user/dashboard")).data;
 export const fetchAdminDashboard = async () => (await API.get("/admin/dashboard")).data;
 
-// ───────────────────────────────────────────────────────────────
-/** Subscriptions */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Subscriptions
+────────────────────────────────────────────────────────────── */
 export const fetchSubscriptions = async () => (await API.get("/subscriptions")).data;
 export const submitSubscriptionQuestionnaire = async (formData) =>
   (await API.post("/subscriptions/questionnaire", formData)).data;
 
-// ───────────────────────────────────────────────────────────────
-/** Views */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Views
+────────────────────────────────────────────────────────────── */
 export const fetchEnabledViews = async () => (await API.get("/auth/enabled-views")).data.enabledViews;
 
-// ───────────────────────────────────────────────────────────────
-/** Admin / Partner */
-// ───────────────────────────────────────────────────────────────
+/* ──────────────────────────────────────────────────────────────
+   Admin / Partner
+────────────────────────────────────────────────────────────── */
 export const fetchAffiliatePartners = async () => (await API.get("/admin/affiliates")).data;
 
-// Partner analytics & comments
 export const fetchPartnerAnalytics = async (params = {}) => (await API.get("/partner/analytics", { params })).data;
 export const fetchPartnerComments  = async () => (await API.get("/partner/comments")).data;
 export const replyToComment        = async ({ commentId, reply }) =>
@@ -204,14 +204,15 @@ export const uploadPromoVideo = async (formData) =>
 export const getPartnerSubscription    = async () => (await API.get("/partner/subscription")).data;
 export const updatePartnerSubscription = async (tier) => (await API.post("/partner/subscription", { tier })).data;
 
-// ───────────────────────────────────────────────────────────────
-/** 2FA (legacy + namespaced) */
-// ───────────────────────────────────────────────────────────────
-export const generate2FA = async () => (await API.get("/2fa/generate")).data;    // if still present
+/* ──────────────────────────────────────────────────────────────
+   2FA (legacy + namespaced)
+────────────────────────────────────────────────────────────── */
+// Legacy names if still referenced somewhere:
+export const generate2FA = async () => (await API.get("/2fa/generate")).data;
 export const verify2FA   = async (token) => (await API.post("/2fa/verify", { token })).data;
 export const disable2FA  = async () => (await API.post("/2fa/disable")).data;
 
-// Email 2FA
+// Current explicit namespaces used by new routes:
 export const email2FA = {
   context: async () => (await API.post("/auth/2fa-email/context")).data || {},
   send:    async () => (await API.post("/auth/2fa-email/send")).data,
@@ -220,7 +221,6 @@ export const email2FA = {
     (await API.post("/auth/2fa-email/verify", { code, trustThisDevice })).data,
 };
 
-// App (TOTP) 2FA
 export const app2FA = {
   setup:   async () => (await API.get("/auth/2fa-app/setup")).data,
   verify:  async (token) => (await API.post("/auth/2fa-app/verify", { token })).data,

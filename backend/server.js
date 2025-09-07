@@ -15,9 +15,8 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const nodemailer = require("nodemailer");
 const path = require("path");
 const mongoose = require("mongoose"); // for /api/ready
-const assertCsp = require("./middleware/assertCsp");            // ✅ tight CSP dev safeguard
+const assertCsp = require("./middleware/assertCsp"); // ✅ tight CSP dev safeguard
 const requireVerified2FA = require("./middleware/requireVerified2FA"); // ✅ 2FA gate for protected APIs
-const attachUserIfPresent = require("./middleware/attachUserIfPresent"); // ✅ non-blocking cookie→req.user helper
 
 // ───────────────────────────────────────────────────────────────
 // ENV + sanity checks
@@ -28,7 +27,7 @@ const {
   SESSION_SECRET,
   JWT_SECRET,
   JWT_REFRESH_SECRET,
-  JWT_OTP_SECRET, // optional (falls back to JWT_SECRET if not set)
+  JWT_OTP_SECRET,                 // optional (falls back to JWT_SECRET if not set)
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
@@ -68,7 +67,10 @@ const transporter = nodemailer.createTransport({
   host: "smtp.zoho.eu",
   port: 465,
   secure: true,
-  auth: { user: EMAIL_ZOHO, pass: PASS_ZOHO },
+  auth: {
+    user: EMAIL_ZOHO,
+    pass: PASS_ZOHO,
+  },
 });
 
 // ───────────────────────────────────────────────────────────────
@@ -100,7 +102,7 @@ app.use(
         "object-src": ["'none'"],
         "script-src": ["'none'"],
         "script-src-attr": ["'none'"],
-      },
+      }
     },
     crossOriginEmbedderPolicy: false,
   })
@@ -110,11 +112,7 @@ app.use(
 app.use(assertCsp(NODE_ENV));
 
 // CORS
-const fallbackOrigins = [
-  "https://bundlebee.co.uk",
-  "https://www.bundlebee.co.uk",
-  "http://localhost:5173",
-];
+const fallbackOrigins = ["https://bundlebee.co.uk", "https://www.bundlebee.co.uk", "http://localhost:5173"];
 const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigins)
   .map((s) => s.trim())
   .filter(Boolean);
@@ -127,7 +125,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -163,9 +161,6 @@ app.use(
 // Passport
 app.use(passport.initialize());
 app.use(passport.session());
-
-// ✅ Make cookie sessions visible to downstream routes (non-blocking)
-app.use(attachUserIfPresent);
 
 // Google OAuth
 passport.use(
@@ -224,7 +219,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
         path: "/",
       };
 
-      // If account requires 2FA, issue only a short-lived otpTicket
+      // If this account requires 2FA (app or verified email 2FA), DO NOT issue real cookies yet.
       const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.verified);
 
       if (twoFAEnabled) {
@@ -314,31 +309,20 @@ app.get("/", (_req, res) => {
 // Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
-// ───────────────────────────────────────────────────────────────
 // API routes
-// ───────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
 
-// ✅ let frontend ask the server the next step
-const authNextRoutes = require("./routes/authNextRoutes");
-app.use("/api/auth", authNextRoutes); // → /api/auth/next
-app.use("/auth", authNextRoutes);     // optional root alias → /auth/next
-
-// 2FA email flow (pre-MFA)
-app.use("/api/2fa-email", require("./routes/email2FARoutes"));
-
-// Verified-only areas
-app.use("/api/admin",   requireVerified2FA, require("./routes/adminRoutes"));
+// ✅ Enforce verified 2FA for admin & partner APIs
+app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
 app.use("/api/partner", requireVerified2FA, require("./routes/partnerRoutes"));
 
-// Other APIs
 app.use("/api/boxes", require("./routes/boxRoutes"));
 app.use("/api", require("./routes/subscriptionRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/quiz", require("./routes/quizRoutes"));
 app.use("/api/interactions", require("./routes/interactionRoutes"));
-app.use("/api/2fa", require("./routes/twoFARoutes"));
+app.use("/api/2fa-email", require("./routes/email2FARoutes"));
 app.use("/api/accounting", require("./routes/accountingRoutes"));
 app.use("/api/2fa-app", require("./routes/totpRoutes"));
 
@@ -346,6 +330,4 @@ app.use("/api/2fa-app", require("./routes/totpRoutes"));
 app.use((req, res) => res.status(404).json({ msg: "API route not found" }));
 
 // Start
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`)
-);
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`));
