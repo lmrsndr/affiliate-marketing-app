@@ -220,9 +220,15 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
       };
 
       // If this account requires 2FA (app or verified email 2FA), DO NOT issue real cookies yet.
-      const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.verified);
+      const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.enabled);
 
       if (twoFAEnabled) {
+      // 🧹 Clear any stale cookies before starting a new 2FA session
+      res.clearCookie("authCookie",  cookieOpts);
+      res.clearCookie("refreshCookie", cookieOpts);
+      try {
+        await User.updateOne({ _id: req.user._id }, { $set: { "email2FA.verified": false } });
+      } catch (e) { console.warn("email2FA reset failed:", e?.message || e); }
     // ✅ Short-lived pre-2FA refresh cookie to allow /api/2fa-* endpoints (not a full session)
     const preRefresh = jwt.sign(
       { id: req.user._id, role: req.user.role, mfaVerified: false, purpose: "pre2fa" },
