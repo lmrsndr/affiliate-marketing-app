@@ -1,3 +1,7 @@
+// At very top of src/api.js:
+window.__BB_API_BUILD = "api.js SAFE build 2025-09-07";
+console.info("[BB] api.js SAFE build loaded:", window.__BB_API_BUILD);
+
 import axios from "axios";
 
 // ✅ Environment Checks
