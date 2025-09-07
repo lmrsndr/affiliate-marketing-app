@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 
 const controller = require("../controllers/accountingController");
-const requireVerified2FA = require("../middleware/requireVerified2FA");
+const authenticate = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const requireVerified2FA = require("../middleware/requireVerified2FA"); // ✅ Added
 
@@ -12,8 +12,8 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Combined middlewares for reuse
-const protectAdmin = [requireVerified2FA, requireVerified2FA, roleMiddleware("admin")];
-const protectShared = [requireVerified2FA, requireVerified2FA, roleMiddleware(["admin", "partner"])];
+const protectAdmin = [authenticate, requireVerified2FA, roleMiddleware("admin")];
+const protectShared = [authenticate, requireVerified2FA, roleMiddleware(["admin", "partner"])];
 
 // ─────────────────────────────
 // ✅ Admin-only accounting routes

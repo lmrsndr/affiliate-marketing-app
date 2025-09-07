@@ -8,44 +8,57 @@ const {
 } = process.env;
 
 /**
- * Resolve a "pending 2FA" user using either:
- *  - otpTicket cookie (preferred), or
- *  - refreshCookie minted pre-2FA (decoded with JWT_REFRESH_SECRET)
- * Attaches req.user (mongoose doc) or returns 401.
+ * Pre-MFA guard: accept otpTicket cookie OR a pre-MFA access/refresh cookie.
+ * Attaches req.user (Mongoose doc) or returns 401.
  */
 module.exports = async function otpOrRefreshMiddleware(req, res, next) {
   try {
-    const cookies = req.cookies || {};
-    const otpTicket = cookies.otpTicket;
-    const refresh = cookies.refreshCookie;
+    // 1) Prefer otpTicket
+    try {
+      const otp = req.cookies?.otpTicket;
+      if (otp) {
+        const c = jwt.verify(otp, JWT_OTP_SECRET);
+        if (c?.purpose === "otp" && c?.sub) {
+          const user = await User.findById(c.sub);
+          if (!user) return res.status(404).json({ message: "User not found" });
+          req.user = user;
+          req.auth = { isAuthenticated: true, mfaVerified: false, claims: { id: user._id }, source: "otpTicket" };
+          return next();
+        }
+      }
+    } catch {}
 
-    let userId = null;
+    // 2) Pre-MFA access cookie
+    try {
+      const t = req.cookies?.authCookie;
+      if (t) {
+        const claims = jwt.verify(t, JWT_SECRET);
+        if (!claims.mfaVerified) {
+          const user = await User.findById(claims.id);
+          if (!user) return res.status(404).json({ message: "User not found" });
+          req.user = user;
+          req.auth = { isAuthenticated: true, mfaVerified: false, claims, source: "access" };
+          return next();
+        }
+      }
+    } catch {}
 
-    // Prefer otpTicket
-    if (otpTicket) {
-      try {
-        const p = jwt.verify(otpTicket, JWT_OTP_SECRET);
-        if (p && p.purpose === 'otp' && p.sub) userId = p.sub;
-      } catch {} // ignore
-    }
+    // 3) Pre-MFA refresh cookie
+    try {
+      const t = req.cookies?.refreshCookie;
+      if (t) {
+        const claims = jwt.verify(t, JWT_REFRESH_SECRET);
+        if (!claims.mfaVerified) {
+          const user = await User.findById(claims.id);
+          if (!user) return res.status(404).json({ message: "User not found" });
+          req.user = user;
+          req.auth = { isAuthenticated: true, mfaVerified: false, claims, source: "refresh" };
+          return next();
+        }
+      }
+    } catch {}
 
-    // Fallback: pre-2FA refreshCookie (mfaVerified should be false/missing)
-    if (!userId && refresh) {
-      try {
-        const p = jwt.verify(refresh, JWT_REFRESH_SECRET);
-        if (p && p.id && !p.mfaVerified) userId = p.id;
-      } catch {} // ignore
-    }
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized (2FA context required)' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    req.user = user;
-    next();
+    return res.status(401).json({ message: 'Unauthorized (2FA context required)' });
   } catch (err) {
     console.error('❌ otpOrRefreshMiddleware error:', err);
     return res.status(500).json({ message: 'Server error' });

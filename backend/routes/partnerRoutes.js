@@ -1,35 +1,19 @@
 const express = require("express");
 const router = express.Router();
-const authMiddleware = require("../middleware/authMiddleware");
-const requireVerified2FA = require("../middleware/requireVerified2FA"); // ✅ Added
+const requireVerified2FA = require("../middleware/requireVerified2FA");
+const role = require("../middleware/roleMiddleware");
+const partner = require("../controllers/partnerController");
 
-const partnerController = require("../controllers/partnerController");
+// Verified and partner role
+router.use(requireVerified2FA, role("partner"));
 
-// ✅ Protect all routes with auth + 2FA
-const protect = [authMiddleware, requireVerified2FA];
-
-// ✅ Get Analytics Data
-router.get("/analytics", protect, partnerController.getPartnerAnalytics);
-
-// ✅ Get Comments / Reviews
-router.get("/comments", protect, partnerController.getPartnerComments);
-
-// ✅ Reply to Comment
-router.post("/reply", protect, partnerController.replyToComment);
-
-// ✅ Upload Video or Image Ad
-router.post("/upload-ad", protect, partnerController.uploadAd);
-
-// ✅ Export Analytics CSV (Gold/Dynamic only)
-router.get("/export-analytics", protect, partnerController.exportAnalyticsCSV);
-
-// ✅ Get Current Subscription Tier
-router.get("/subscription", protect, partnerController.getSubscription);
-
-// ✅ Update Subscription Tier
-router.put("/subscription", protect, partnerController.updateSubscription);
-
-// ✅ (Optional) Ad Preview Placeholder
-router.get("/ad", protect, partnerController.getAd);
+router.get ("/analytics",        partner.getPartnerAnalytics);
+router.get ("/comments",         partner.getPartnerComments);
+router.post("/reply",            partner.replyToComment);
+router.post("/upload-ad",        partner.uploadAd);
+router.get ("/export-analytics", partner.exportAnalyticsCSV);
+router.get ("/subscription",     partner.getSubscription);
+router.put ("/subscription",     partner.updateSubscription);
+router.get ("/ad",               partner.getAd);
 
 module.exports = router;

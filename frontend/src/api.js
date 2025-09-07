@@ -1,103 +1,80 @@
-// src/api.js — LOOP-PROOF SAFE BUILD with root refresh
-// ==================================
+// At very top of src/api.js:
 window.__BB_API_BUILD = "api.js SAFE build 2025-09-07";
 console.info("[BB] api.js SAFE build loaded:", window.__BB_API_BUILD);
 
 import axios from "axios";
 
-/* ===== Env & Base URLs ===== */
-if (!import.meta.env.VITE_API_URL) {
-  console.warn("⚠️ Missing VITE_API_URL in env. Using https://api.bundlebee.co.uk");
-}
+// ✅ Environment Checks
+if (!import.meta.env.VITE_API_URL) console.warn("⚠️ Missing VITE_API_URL in environment variables!");
+if (!import.meta.env.VITE_GOOGLE_AUTH_URL) console.warn("⚠️ Missing VITE_GOOGLE_AUTH_URL in environment variables!");
+if (!import.meta.env.VITE_GOOGLE_REDIRECT_URI) console.warn("⚠️ Missing VITE_GOOGLE_REDIRECT_URI in environment variables!");
+
+// ✅ Normalize API Base URL
 const safeBaseURL = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk").replace(/\/+$/, "");
 
-// Some backends expose refresh at the root while normal APIs are under /api.
-// Example: VITE_API_URL = https://api.bundlebee.co.uk/api  → refresh at https://api.bundlebee.co.uk/auth/refresh
-const AUTH_BASE = safeBaseURL.replace(/\/api$/, "");
-
-console.info("[BB] Backend API:", safeBaseURL);
-console.info("[BB] Auth base   :", AUTH_BASE);
-
-/* ===== In-memory access token (optional; avoid localStorage) ===== */
-let ACCESS_TOKEN_MEMORY = "";
-export const setAccessToken = (t = "") => (ACCESS_TOKEN_MEMORY = t || "");
-export const clearAccessToken = () => (ACCESS_TOKEN_MEMORY = "");
-export const getAccessToken = () => ACCESS_TOKEN_MEMORY;
-
-/* ===== Axios instance (single source of truth) ===== */
+// ✅ Create Axios Instance
 const API = axios.create({
-  baseURL: safeBaseURL,           // e.g. https://api.bundlebee.co.uk/api
-  withCredentials: true,          // send HttpOnly cookies
-  xsrfCookieName: "csrfToken",    // backend should set this cookie
-  xsrfHeaderName: "X-CSRF-Token", // Axios copies cookie -> header
+  baseURL: safeBaseURL,
+  withCredentials: true,
 });
 
 export default API;
 
-/* ===== Request interceptor: attach in-memory bearer if present ===== */
+// ✅ Attach Authorization Header Automatically
 API.interceptors.request.use(
   (config) => {
-    if (ACCESS_TOKEN_MEMORY) {
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${ACCESS_TOKEN_MEMORY}`;
+    const token = sessionStorage.getItem("accessToken") || localStorage.getItem("accessToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn("⚠️ No access token found. Some requests may fail.");
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error("❌ Request Interceptor Error:", error);
+    return Promise.reject(error);
+  }
 );
 
-/* ===== Response interceptor: LOOP-PROOF 401/403 handling ===== */
+// ✅ Global Response Interceptor for 401 / 403
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const status = error?.response?.status;
-    const reason = error?.response?.data?.reason;
-    const originalRequest = error?.config || {};
-    if (originalRequest._retry == null) originalRequest._retry = false;
+    const status = error.response?.status;
+    const reason = error.response?.data?.reason;
+    const originalRequest = error.config;
 
-    // Pages where we NEVER force redirect/alert to avoid loops
-    const PATH = window.location.pathname || "/";
-    const SAFE_PUBLIC_REGEX = /^(\/|\/login|\/register|\/auth\/callback|\/verify-2fa|\/setup-2fa)$/;
-
-    // 403: server says TOTP/2FA setup required
+    // ✅ Redirect to setup page if TOTP required
     if (status === 403 && reason === "TOTP_REQUIRED") {
-      if (!SAFE_PUBLIC_REGEX.test(PATH)) window.location.href = "/setup-2fa";
-      return Promise.reject(error);
+      console.warn("⛔ Redirecting to /setup-2fa due to missing TOTP");
+      window.location.href = "/setup-2fa";
+      return;
     }
 
-    // 401: try one refresh using HttpOnly cookie AT AUTH_BASE (root)
+    // ✅ Attempt refresh token on 401 (only once)
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+
       try {
-        const { data } = await axios.get(`${AUTH_BASE}/auth/refresh`, {
-          withCredentials: true,
-          xsrfCookieName: "csrfToken",
-          xsrfHeaderName: "X-CSRF-Token",
-        });
+        const { data } = await axios.get(`${safeBaseURL}/auth/refresh`, { withCredentials: true });
 
-        if (data?.accessToken) setAccessToken(data.accessToken);
-
-        // Re-issue the original request
-        if (getAccessToken()) {
-          originalRequest.headers = originalRequest.headers || {};
-          originalRequest.headers.Authorization = `Bearer ${getAccessToken()}`;
-        } else if (originalRequest.headers) {
-          delete originalRequest.headers.Authorization; // rely on cookies only
-        }
+        sessionStorage.setItem("accessToken", data.accessToken);
+        localStorage.setItem("accessToken", data.accessToken);
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         return API.request(originalRequest);
-      } catch {
-        // Refresh failed; clear any in-memory token and decide redirect below
-        clearAccessToken();
-      }
-    }
+      } catch (refreshError) {
+        console.error("❌ Refresh token failed. Logging out...");
 
-    // Final 401 handling: DO NOT interrupt SAFE pages (avoid auth loop)
-    if (status === 401) {
-      if (!SAFE_PUBLIC_REGEX.test(PATH)) {
-        console.warn("⚠️ Session expired. Redirecting to /login");
-        window.location.href = "/login?reason=session-expired";
-      } else {
-        console.warn("401 on safe page — suppressed redirect to avoid auth loop.");
+        sessionStorage.removeItem("accessToken");
+        localStorage.removeItem("accessToken");
+
+        const isPublic = ["/", "/login", "/register"].includes(window.location.pathname);
+
+        if (!isPublic) {
+          alert("⚠️ Your session has expired. Please log in again.");
+          window.location.href = "/login?reason=session-expired";
+        }
       }
     }
 
@@ -105,94 +82,154 @@ API.interceptors.response.use(
   }
 );
 
-/* ===== Auth utilities (server-driven) ===== */
-
-export const getNextAuthStep = async () => {
-  try {
-    const res = await API.get("/auth/next");
-    // { step: "login"|"verify-2fa"|"setup-2fa"|"dashboard", redirectTo? }
-    return res.data;
-  } catch (err) {
-    console.error("❌ /auth/next failed:", err?.response?.data || err.message);
-    return { step: "login" };
-  }
-};
-
+// ✅ Auth Utilities
 export const checkAuthStatus = async () => {
   try {
+    console.log("🔍 Checking authentication status...");
     const res = await API.get("/auth/status");
-    if (res.data?.accessToken) setAccessToken(res.data.accessToken);
     return res.data;
   } catch (err) {
-    console.error("❌ Authentication Check Failed:", err?.response?.data || err.message);
+    console.error("❌ Authentication Check Failed:", err);
     return { isAuthenticated: false };
   }
 };
 
-// If someone calls refresh directly, use AUTH_BASE here too:
 export const refreshToken = async () => {
-  const res = await axios.get(`${AUTH_BASE}/auth/refresh`, {
-    withCredentials: true,
-    xsrfCookieName: "csrfToken",
-    xsrfHeaderName: "X-CSRF-Token",
-  });
-  if (res.data?.accessToken) setAccessToken(res.data.accessToken);
-  return res.data;
+  try {
+    const res = await API.get("/auth/refresh");
+    sessionStorage.setItem("accessToken", res.data.accessToken);
+    return res.data;
+  } catch (err) {
+    console.error("❌ Refresh Token Failed:", err);
+    throw err;
+  }
 };
 
 export const registerUser = async (userData) => {
   const res = await API.post("/auth/register", userData);
-  if (res.data?.accessToken) setAccessToken(res.data.accessToken);
   return res.data;
 };
 
 export const loginUser = async (credentials) => {
   const res = await API.post("/auth/login", credentials);
-  if (res.data?.accessToken) setAccessToken(res.data.accessToken);
+  sessionStorage.setItem("accessToken", res.data.accessToken);
+  localStorage.setItem("accessToken", res.data.accessToken);
   return res.data;
 };
 
 export const logoutUser = async () => {
-  try { await API.get("/auth/logout"); } catch (_) {}
-  clearAccessToken();
+  await API.get("/auth/logout");
+  sessionStorage.removeItem("accessToken");
+  localStorage.removeItem("accessToken");
   window.location.href = "/login";
 };
 
-/* ===== API helpers ===== */
+// ✅ User Dashboard
+export const fetchUserDashboard = async () => {
+  const res = await API.get("/user/dashboard");
+  return res.data;
+};
 
-export const fetchUserDashboard = async () => (await API.get("/user/dashboard")).data;
-export const fetchAdminDashboard = async () => (await API.get("/admin/dashboard")).data;
+export const fetchAdminDashboard = async () => {
+  const res = await API.get("/admin/dashboard");
+  return res.data;
+};
 
-export const fetchSubscriptions = async () => (await API.get("/subscriptions")).data;
-export const submitSubscriptionQuestionnaire = async (formData) => (await API.post("/subscriptions/questionnaire", formData)).data;
+// ✅ Subscriptions
+export const fetchSubscriptions = async () => {
+  const res = await API.get("/subscriptions");
+  return res.data;
+};
 
+export const submitSubscriptionQuestionnaire = async (formData) => {
+  const res = await API.post("/subscriptions/questionnaire", formData);
+  return res.data;
+};
+
+// ✅ Authenticated View Control
 export const fetchEnabledViews = async () => {
   const res = await API.get("/auth/enabled-views");
   return res.data.enabledViews;
 };
 
-export const fetchAffiliatePartners = async () => (await API.get("/admin/affiliates")).data;
+// ✅ Admin Affiliate Controls
+export const fetchAffiliatePartners = async () => {
+  const res = await API.get("/admin/affiliates");
+  return res.data;
+};
 
-export const fetchUserProfile = async () => (await API.get("/user/profile")).data;
+// ✅ User Profile
+export const fetchUserProfile = async () => {
+  const res = await API.get("/user/profile");
+  return res.data;
+};
 
-export const resetPassword = async (resetData) => (await API.post("/auth/reset-password", resetData)).data;
-export const forgotUsername = async (email) => (await API.post("/auth/forgot-username", { email })).data;
+// ✅ Auth Recovery
+export const resetPassword = async (resetData) => {
+  const res = await API.post("/auth/reset-password", resetData);
+  return res.data;
+};
 
-export const fetchPartnerAnalytics = async (params = {}) => (await API.get("/partner/analytics", { params })).data;
+export const forgotUsername = async (email) => {
+  const res = await API.post("/auth/forgot-username", { email });
+  return res.data;
+};
 
-export const fetchPartnerComments = async () => (await API.get("/partner/comments")).data;
-export const replyToComment = async ({ commentId, reply }) => (await API.post(`/partner/comments/${commentId}/reply`, { reply })).data;
+// ✅ Partner Analytics
+export const fetchPartnerAnalytics = async (params = {}) => {
+  const res = await API.get("/partner/analytics", { params });
+  return res.data;
+};
 
-export const uploadPromoImage = async (formData) =>
-  (await API.post("/partner/promo/image", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
+// ✅ Comments & Replies
+export const fetchPartnerComments = async () => {
+  const res = await API.get("/partner/comments");
+  return res.data;
+};
 
-export const uploadPromoVideo = async (formData) =>
-  (await API.post("/partner/promo/video", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
+export const replyToComment = async ({ commentId, reply }) => {
+  const res = await API.post(`/partner/comments/${commentId}/reply`, { reply });
+  return res.data;
+};
 
-export const getPartnerSubscription = async () => (await API.get("/partner/subscription")).data;
-export const updatePartnerSubscription = async (tier) => (await API.post("/partner/subscription", { tier })).data;
+// ✅ Promotions
+export const uploadPromoImage = async (formData) => {
+  const res = await API.post("/partner/promo/image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
 
-/* ===== 2FA ===== */
-export const generate2FA = async () => (await API.get("/2fa/generate")).data;
-export const verify2FA = async (token, extra = {}) => (await API.post("/2fa/verify", { token, ...extra })).data;
-export const disable2FA = async () => (await API.post("/2fa/disable")).data;
+export const uploadPromoVideo = async (formData) => {
+  const res = await API.post("/partner/promo/video", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+// ✅ Subscription Management
+export const getPartnerSubscription = async () => {
+  const res = await API.get("/partner/subscription");
+  return res.data;
+};
+
+export const updatePartnerSubscription = async (tier) => {
+  const res = await API.post("/partner/subscription", { tier });
+  return res.data;
+};
+
+// ✅ Two-Factor Authentication (2FA)
+export const generate2FA = async () => {
+  const res = await API.get("/2fa/generate");
+  return res.data;
+};
+
+export const verify2FA = async (token) => {
+  const res = await API.post("/2fa/verify", { token });
+  return res.data;
+};
+
+export const disable2FA = async () => {
+  const res = await API.post("/2fa/disable");
+  return res.data;
+};

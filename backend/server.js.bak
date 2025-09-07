@@ -323,6 +323,7 @@ app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/quiz", require("./routes/quizRoutes"));
 app.use("/api/interactions", require("./routes/interactionRoutes"));
 app.use("/api/2fa-email", require("./routes/email2FARoutes"));
+app.use("/api/2fa", require("./routes/twoFARoutes"));
 app.use("/api/accounting", require("./routes/accountingRoutes"));
 app.use("/api/2fa-app", require("./routes/totpRoutes"));
 

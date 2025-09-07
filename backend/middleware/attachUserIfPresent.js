@@ -1,44 +1,42 @@
-// middleware/attachUserIfPresent.js
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const {
-  JWT_SECRET,
-  JWT_REFRESH_SECRET,
-} = process.env;
+const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
 
-// Best-effort: attach req.user & req.auth if we can decode the cookie token.
-// Does NOT throw; never blocks requests.
+/**
+ * Non-blocking helper: attach req.auth (claims, mfaVerified) and req.user if cookies exist.
+ * Does NOT enforce login or MFA — use requireAuth / requireVerified2FA for that.
+ */
 module.exports = async function attachUserIfPresent(req, _res, next) {
-  req.auth = { isAuthenticated: false, source: null, mfaVerified: false, claims: null };
+  req.auth = { isAuthenticated: false, mfaVerified: false, claims: null, source: null };
 
+  // access cookie
   try {
-    const access = req.cookies?.authCookie;
-    if (access) {
-      const claims = jwt.verify(access, JWT_SECRET);
-      req.auth = { isAuthenticated: true, source: "access", mfaVerified: !!claims.mfaVerified, claims };
-      // Load fresh user doc (lean for speed)
-      const user = await User.findById(claims.id).lean();
-      if (user) req.user = user;
+    const t = req.cookies?.authCookie;
+    if (t) {
+      const claims = jwt.verify(t, JWT_SECRET);
+      req.auth = { isAuthenticated: true, mfaVerified: !!claims.mfaVerified, claims, source: "access" };
+      if (!req.user) {
+        const user = await User.findById(claims.id).lean();
+        if (user) req.user = user;
+      }
       return next();
     }
-  } catch (_) {
-    // ignore and try refresh cookie below
-  }
+  } catch {}
 
+  // refresh cookie
   try {
-    const refresh = req.cookies?.refreshCookie;
-    if (refresh) {
-      const claims = jwt.verify(refresh, JWT_REFRESH_SECRET);
-      req.auth = { isAuthenticated: true, source: "refresh", mfaVerified: !!claims.mfaVerified, claims };
-      const user = await User.findById(claims.id).lean();
-      if (user) req.user = user;
+    const t = req.cookies?.refreshCookie;
+    if (t) {
+      const claims = jwt.verify(t, JWT_REFRESH_SECRET);
+      req.auth = { isAuthenticated: true, mfaVerified: !!claims.mfaVerified, claims, source: "refresh" };
+      if (!req.user) {
+        const user = await User.findById(claims.id).lean();
+        if (user) req.user = user;
+      }
       return next();
     }
-  } catch (_) {
-    // ignore
-  }
+  } catch {}
 
-  // Nothing attached
   return next();
 };
