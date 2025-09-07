@@ -1,18 +1,19 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const sendEmail = require("../utils/sendEmail");
+const sendEmail = require("../utils/sendEmail"); // if your util exports { sendEmail }, change to: const { sendEmail } = require("../utils/sendEmail");
 
 const {
   NODE_ENV = "development",
   COOKIE_DOMAIN = ".bundlebee.co.uk",
   JWT_SECRET,
   JWT_REFRESH_SECRET,
+  JWT_OTP_SECRET, // optional; falls back to JWT_SECRET
 } = process.env;
 
 const IS_PROD = NODE_ENV === "production";
 
-// Cookie helpers
+/* ---------- cookie helpers ---------- */
 function cookieOpts(base = {}) {
   const common = {
     httpOnly: true,
@@ -28,6 +29,15 @@ function setCookie(res, name, value, opts) {
 }
 function clearCookie(res, name) {
   res.clearCookie(name, cookieOpts());
+}
+
+/* ---------- token helpers ---------- */
+function signOtpTicket(userId) {
+  return jwt.sign(
+    { sub: String(userId), purpose: "otp" },
+    JWT_OTP_SECRET || JWT_SECRET,
+    { expiresIn: 300 } // 5 minutes
+  );
 }
 
 // After 2FA verified, rotate to full tokens (mfaVerified: true)
@@ -50,12 +60,52 @@ function rotateToFullTokens(res, user) {
   return { accessToken, refreshToken };
 }
 
-// ✅ Send Email 2FA Code
+/* ---------- internal helpers ---------- */
+// Best-effort: derive user id from existing context or auth claims
+function getUserIdFromContext(req) {
+  // Prefer otpTicket (explicit 2FA context)
+  try {
+    const t = req.cookies?.otpTicket;
+    if (t) {
+      const c = jwt.verify(t, JWT_OTP_SECRET || JWT_SECRET);
+      if (c?.purpose === "otp" && c?.sub) return String(c.sub);
+    }
+  } catch (_) {}
+  // Fall back to pre-2FA auth/refresh cookies (middleware may have set req.user/req.auth)
+  if (req.auth?.isAuthenticated && req.auth?.claims?.id && !req.auth?.mfaVerified) {
+    return String(req.auth.claims.id);
+  }
+  if (req.user?._id) return String(req.user._id);
+  return null;
+}
+
+/* =======================================================================
+   PUBLIC HANDLERS
+   ======================================================================= */
+
+/**
+ * POST /api/2fa-email/context
+ * Mint/refresh a short-lived otpTicket cookie for an authenticated-but-not-verified user.
+ * NOTE: Do NOT put this behind otpOrRefresh; use a light middleware that attaches req.user/req.auth.
+ */
+exports.createContext = async (req, res) => {
+  const uid = getUserIdFromContext(req) || req.auth?.claims?.id || req.user?._id;
+  if (!uid) return res.status(401).json({ message: "Unauthorized (no 2FA context available)" });
+
+  // Always (re)issue a fresh short-lived otpTicket
+  const otpTicket = signOtpTicket(uid);
+  setCookie(res, "otpTicket", otpTicket, { maxAge: 5 * 60 * 1000 }); // 5 minutes
+  return res.status(204).end();
+};
+
+/**
+ * POST /api/2fa-email/send
+ * Requires otpTicket OR a pre-2FA refresh cookie (enforced by otpOrRefresh).
+ */
 exports.sendEmail2FACode = async (req, res) => {
   try {
-    // req.user is provided by otpOrRefresh middleware (a Mongoose doc)
-    const user = req.user;
-    if (!user) return res.status(401).json({ message: "Unauthorized" });
+    const user = req.user; // provided by otpOrRefresh (a Mongoose doc)
+    if (!user) return res.status(401).json({ message: "Unauthorized (2FA context required)" });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const hashed = crypto.createHash("sha256").update(code).digest("hex");
@@ -75,20 +125,20 @@ exports.sendEmail2FACode = async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; color: #222; padding: 20px; border: 1px solid #eee; max-width: 600px; margin: auto;">
           <h2 style="color: #2c3e50;">Hi ${user.firstName || "there"},</h2>
-          <p>To continue signing into your <strong>BundleBee</strong> account, please enter the following verification code:</p>
+          <p>To continue signing in to <strong>BundleBee</strong>, enter this verification code:</p>
           <div style="font-size: 28px; font-weight: bold; color: #2e86de; background: #f1f1f1; padding: 15px; text-align: center; border-radius: 8px; letter-spacing: 2px; margin: 20px 0;">
             ${code}
           </div>
-          <p>This code will expire in <strong>10 minutes</strong>. For your security, do not share this code with anyone.</p>
+          <p>This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
           <hr />
           <p style="font-size: 13px; color: #666;">
-            If you did not try to sign in, please ignore this message or contact us immediately at 
+            If you didn’t try to sign in, please ignore this message or contact
             <a href="mailto:support@bundlebee.co.uk">support@bundlebee.co.uk</a>.
           </p>
           <p style="font-size: 12px; color: #aaa;">Sent by BundleBee • bundlebee.co.uk</p>
         </div>
       `,
-      text: `Hi ${user.firstName || "there"},\n\nYour BundleBee verification code is: ${code}\n\nThis code will expire in 10 minutes.\n\nIf you didn't try to sign in, please ignore this message or contact support@bundlebee.co.uk.\n\n- The BundleBee Team`,
+      text: `Hi ${user.firstName || "there"},\n\nYour BundleBee verification code is: ${code}\n\nIt expires in 10 minutes.\n\nIf you didn't try to sign in, please ignore this message or contact support@bundlebee.co.uk.\n\n- BundleBee`,
     });
 
     return res.status(200).json({ message: "2FA code sent to your email." });
@@ -98,9 +148,13 @@ exports.sendEmail2FACode = async (req, res) => {
   }
 };
 
-// ✅ Verify Email 2FA Code
+/**
+ * POST /api/2fa-email/verify
+ * Body: { code?: string, token?: string, trustThisDevice?: boolean }
+ */
 exports.verifyEmail2FACode = async (req, res) => {
-  const { code, trustThisDevice } = req.body || {};
+  const { code, token, trustThisDevice } = req.body || {};
+  const provided = String(code || token || "");
   try {
     const user = req.user; // from otpOrRefresh
     if (!user) return res.status(401).json({ message: "Unauthorized" });
@@ -110,6 +164,7 @@ exports.verifyEmail2FACode = async (req, res) => {
 
     const now = new Date();
 
+    // simple anti-bruteforce (cooldown after 5 fails for 15 minutes)
     if (user.email2FA.failedAttempts >= 5) {
       const cooldownMs = 15 * 60 * 1000;
       const lastFailed = new Date(user.email2FA.lastFailedAt || 0);
@@ -125,7 +180,12 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(410).json({ message: "2FA code expired. Please request a new one." });
     }
 
-    const submittedHash = crypto.createHash("sha256").update(code).digest("hex");
+    // Accept exactly 6 digits
+    if (!/^\d{6}$/.test(provided)) {
+      return res.status(400).json({ message: "Invalid code format" });
+    }
+
+    const submittedHash = crypto.createHash("sha256").update(provided).digest("hex");
     const storedHash = user.email2FA.code;
     const match = storedHash && storedHash === submittedHash;
 
@@ -136,10 +196,15 @@ exports.verifyEmail2FACode = async (req, res) => {
       return res.status(401).json({ message: "Invalid code" });
     }
 
-    // Mark verified in DB for email 2FA
+    // Mark verified in DB for email 2FA and (optionally) globally
     user.email2FA.verified = true;
+    user.twoFAVerified = true; // <-- important for /auth/status consumers
     user.email2FA.failedAttempts = 0;
     user.email2FA.lastFailedAt = null;
+    // remove the code to prevent reuse
+    user.email2FA.code = undefined;
+    user.email2FA.expiresAt = undefined;
+
     user.interactions = user.interactions || [];
     user.interactions.push({
       action: "2fa_verified",
@@ -168,10 +233,11 @@ exports.verifyEmail2FACode = async (req, res) => {
   }
 };
 
-// ✅ Resend Email 2FA Code
+/**
+ * POST /api/2fa-email/resend
+ */
 exports.resendEmail2FACode = async (req, res) => {
   try {
-    // req.user already resolved by middleware
     return exports.sendEmail2FACode(req, res);
   } catch (err) {
     console.error("❌ Failed to resend 2FA email:", err);
