@@ -1,15 +1,22 @@
-// src/api.js — LOOP-PROOF SAFE BUILD
+// src/api.js — LOOP-PROOF SAFE BUILD with root refresh
 // ==================================
-// Build banner (visible in Console to confirm correct bundle is live)
 window.__BB_API_BUILD = "api.js SAFE build 2025-09-07";
 console.info("[BB] api.js SAFE build loaded:", window.__BB_API_BUILD);
 
 import axios from "axios";
 
-/* ===== Env & Base URL ===== */
-if (!import.meta.env.VITE_API_URL)
+/* ===== Env & Base URLs ===== */
+if (!import.meta.env.VITE_API_URL) {
   console.warn("⚠️ Missing VITE_API_URL in env. Using https://api.bundlebee.co.uk");
+}
 const safeBaseURL = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk").replace(/\/+$/, "");
+
+// Some backends expose refresh at the root while normal APIs are under /api.
+// Example: VITE_API_URL = https://api.bundlebee.co.uk/api  → refresh at https://api.bundlebee.co.uk/auth/refresh
+const AUTH_BASE = safeBaseURL.replace(/\/api$/, "");
+
+console.info("[BB] Backend API:", safeBaseURL);
+console.info("[BB] Auth base   :", AUTH_BASE);
 
 /* ===== In-memory access token (optional; avoid localStorage) ===== */
 let ACCESS_TOKEN_MEMORY = "";
@@ -19,10 +26,10 @@ export const getAccessToken = () => ACCESS_TOKEN_MEMORY;
 
 /* ===== Axios instance (single source of truth) ===== */
 const API = axios.create({
-  baseURL: safeBaseURL,
-  withCredentials: true,            // send HttpOnly cookies
-  xsrfCookieName: "csrfToken",      // backend should set this cookie
-  xsrfHeaderName: "X-CSRF-Token",   // Axios copies cookie -> header
+  baseURL: safeBaseURL,           // e.g. https://api.bundlebee.co.uk/api
+  withCredentials: true,          // send HttpOnly cookies
+  xsrfCookieName: "csrfToken",    // backend should set this cookie
+  xsrfHeaderName: "X-CSRF-Token", // Axios copies cookie -> header
 });
 
 export default API;
@@ -39,11 +46,7 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-/* ===== Response interceptor: LOOP-PROOF 401/403 handling =====
-   - Never alert/redirect on SAFE_PUBLIC pages (prevents callback loops)
-   - Single refresh attempt using HttpOnly cookie
-   - Optional new access token stays in memory only
-================================================================= */
+/* ===== Response interceptor: LOOP-PROOF 401/403 handling ===== */
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -62,11 +65,11 @@ API.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 401: try one refresh using HttpOnly cookie
+    // 401: try one refresh using HttpOnly cookie AT AUTH_BASE (root)
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        const { data } = await axios.get(`${safeBaseURL}/auth/refresh`, {
+        const { data } = await axios.get(`${AUTH_BASE}/auth/refresh`, {
           withCredentials: true,
           xsrfCookieName: "csrfToken",
           xsrfHeaderName: "X-CSRF-Token",
@@ -79,7 +82,7 @@ API.interceptors.response.use(
           originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${getAccessToken()}`;
         } else if (originalRequest.headers) {
-          delete originalRequest.headers.Authorization; // rely on cookies
+          delete originalRequest.headers.Authorization; // rely on cookies only
         }
         return API.request(originalRequest);
       } catch {
@@ -104,7 +107,6 @@ API.interceptors.response.use(
 
 /* ===== Auth utilities (server-driven) ===== */
 
-// Ask server what the next step is (login | verify-2fa | setup-2fa | dashboard)
 export const getNextAuthStep = async () => {
   try {
     const res = await API.get("/auth/next");
@@ -127,8 +129,13 @@ export const checkAuthStatus = async () => {
   }
 };
 
+// If someone calls refresh directly, use AUTH_BASE here too:
 export const refreshToken = async () => {
-  const res = await API.get("/auth/refresh");
+  const res = await axios.get(`${AUTH_BASE}/auth/refresh`, {
+    withCredentials: true,
+    xsrfCookieName: "csrfToken",
+    xsrfHeaderName: "X-CSRF-Token",
+  });
   if (res.data?.accessToken) setAccessToken(res.data.accessToken);
   return res.data;
 };
@@ -151,7 +158,7 @@ export const logoutUser = async () => {
   window.location.href = "/login";
 };
 
-/* ===== API helpers (unchanged signatures) ===== */
+/* ===== API helpers ===== */
 
 export const fetchUserDashboard = async () => (await API.get("/user/dashboard")).data;
 export const fetchAdminDashboard = async () => (await API.get("/admin/dashboard")).data;
