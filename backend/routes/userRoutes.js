@@ -9,7 +9,6 @@ const userController = require("../controllers/userController");
 const requireVerified2FA = require("../middleware/requireVerified2FA");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
-// GridFS
 const conn = mongoose.connection;
 let gfs;
 conn.once("open", () => {
@@ -17,7 +16,6 @@ conn.once("open", () => {
   gfs.collection("profilePictures");
 });
 
-// Multer storage
 const storage = new GridFsStorage({
   url: process.env.MONGO_URI,
   file: async (req, file) => {
@@ -30,7 +28,7 @@ const storage = new GridFsStorage({
 });
 const upload = multer({ storage });
 
-/** Verified user routes */
+// Verified user routes
 router.use(requireVerified2FA);
 
 router.get("/profile", async (req, res) => {
@@ -66,7 +64,7 @@ router.delete("/delete-profile-picture", async (_req, res) => {
   res.json({ message: "Profile picture deleted" });
 });
 
-// Profile/settings
+// Settings & profile
 router.put ("/profile",         userController.updateProfile);
 router.post("/change-password", userController.changePassword);
 

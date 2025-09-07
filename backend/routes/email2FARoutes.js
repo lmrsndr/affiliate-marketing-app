@@ -20,7 +20,7 @@ if (typeof email2FAController.createContext === "function") {
   router.post('/context', attachUserIfPresent, pending2FAOnly, email2FAController.createContext);
 }
 
-// Pre-MFA flow
+// Pre-MFA email 2FA flow
 router.post('/send',   otpOrRefresh, pending2FAOnly, email2FAController.sendEmail2FACode);
 router.post('/resend', otpOrRefresh, pending2FAOnly, (email2FAController.resendEmail2FACode || email2FAController.sendEmail2FACode));
 router.post('/verify', otpOrRefresh, pending2FAOnly, email2FAController.verifyEmail2FACode);

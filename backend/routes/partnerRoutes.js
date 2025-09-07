@@ -4,7 +4,7 @@ const requireVerified2FA = require("../middleware/requireVerified2FA");
 const role = require("../middleware/roleMiddleware");
 const partner = require("../controllers/partnerController");
 
-// Verified and partner role
+// Verified + partner role
 router.use(requireVerified2FA, role("partner"));
 
 router.get ("/analytics",        partner.getPartnerAnalytics);

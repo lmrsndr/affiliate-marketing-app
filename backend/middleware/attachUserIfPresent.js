@@ -1,16 +1,12 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-
 const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
 
-/**
- * Non-blocking helper: attach req.auth (claims, mfaVerified) and req.user if cookies exist.
- * Does NOT enforce login or MFA — use requireAuth / requireVerified2FA for that.
- */
+/** Non-blocking cookie attach (no MFA enforcement here) */
 module.exports = async function attachUserIfPresent(req, _res, next) {
   req.auth = { isAuthenticated: false, mfaVerified: false, claims: null, source: null };
 
-  // access cookie
+  // Access cookie
   try {
     const t = req.cookies?.authCookie;
     if (t) {
@@ -24,7 +20,7 @@ module.exports = async function attachUserIfPresent(req, _res, next) {
     }
   } catch {}
 
-  // refresh cookie
+  // Refresh cookie
   try {
     const t = req.cookies?.refreshCookie;
     if (t) {

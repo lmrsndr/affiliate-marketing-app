@@ -1,9 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-/**
- * Minimal "logged-in" gate. Accepts cookie or Authorization header.
- * Does NOT require MFA — pair with requireVerified2FA when needed.
- */
+/** Logged-in gate (cookie or header). Does NOT require MFA. */
 module.exports = (req, res, next) => {
   if (req.user || (req.auth && req.auth.isAuthenticated)) return next();
 

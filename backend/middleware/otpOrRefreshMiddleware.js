@@ -7,13 +7,10 @@ const {
   JWT_OTP_SECRET = JWT_SECRET,
 } = process.env;
 
-/**
- * Pre-MFA guard: accept otpTicket cookie OR a pre-MFA access/refresh cookie.
- * Attaches req.user (Mongoose doc) or returns 401.
- */
+/** Pre-MFA guard: accept otpTicket OR a pre-MFA access/refresh cookie. */
 module.exports = async function otpOrRefreshMiddleware(req, res, next) {
   try {
-    // 1) Prefer otpTicket
+    // 1) otpTicket
     try {
       const otp = req.cookies?.otpTicket;
       if (otp) {
@@ -28,7 +25,7 @@ module.exports = async function otpOrRefreshMiddleware(req, res, next) {
       }
     } catch {}
 
-    // 2) Pre-MFA access cookie
+    // 2) pre-MFA access cookie
     try {
       const t = req.cookies?.authCookie;
       if (t) {
@@ -43,7 +40,7 @@ module.exports = async function otpOrRefreshMiddleware(req, res, next) {
       }
     } catch {}
 
-    // 3) Pre-MFA refresh cookie
+    // 3) pre-MFA refresh cookie
     try {
       const t = req.cookies?.refreshCookie;
       if (t) {
