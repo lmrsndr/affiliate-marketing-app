@@ -125,7 +125,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"], // ← allow CSRF header
   })
 );
 
@@ -309,8 +309,15 @@ app.get("/", (_req, res) => {
 // Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
+// ───────────────────────────────────────────────────────────────
 // API routes
+// ───────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/authRoutes"));
+
+// ✅ NEW: mount /auth/next (and root alias) so the frontend can ask the server what to do next
+const authNextRoutes = require("./routes/authNextRoutes");
+app.use("/api/auth", authNextRoutes); // → /api/auth/next
+app.use("/auth", authNextRoutes);     // optional root alias → /auth/next
 
 // ✅ Enforce verified 2FA for admin & partner APIs
 app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
