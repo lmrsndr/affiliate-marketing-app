@@ -1,156 +1,199 @@
 <template>
-  <div class="verify-wrapper">
+  <div class="verify-2fa">
     <div class="card">
-      <h2>Two-Factor Verification</h2>
+      <h1>Two-Factor Verification</h1>
 
-      <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="info" class="info">{{ info }}</p>
+      <p v-if="status==='idle'">Preparing verification…</p>
 
-      <div class="row">
-        <label for="otp">Enter 6-digit code</label>
-        <input
-          id="otp"
-          type="text"
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          maxlength="6"
-          :value="code"
-          @input="onCodeInput"
-          class="otp-input"
-        />
-      </div>
+      <div v-if="status!=='idle'">
+        <p class="hint">
+          We’ve sent a 6-digit code to your email.
+          <button class="link" @click="resend" :disabled="loading">Resend code</button>
+        </p>
 
-      <div class="row actions">
-        <button :disabled="sending" @click="resend">{{ sending ? 'Sending…' : 'Resend code' }}</button>
-        <button :disabled="verifying || code.length !== 6" class="primary" @click="verify">
-          {{ verifying ? 'Verifying…' : 'Verify & Continue' }}
-        </button>
+        <form @submit.prevent="verify">
+          <label for="code">Enter 6-digit code</label>
+          <input
+            id="code"
+            v-model="code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            minlength="6"
+            pattern="^[0-9]{6}$"
+            placeholder="••••••"
+            @input="code = code.replace(/[^0-9]/g, '').slice(0,6)"
+            required
+          />
+          <label class="trust">
+            <input type="checkbox" v-model="trustDevice" /> Trust this device (30 days)
+          </label>
+          <button type="submit" :disabled="loading || code.length!==6">Verify & Continue</button>
+        </form>
+
+        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="message" class="message">{{ message }}</p>
+
+        <details class="debug">
+          <summary>Debug info</summary>
+          <pre>{{ debugInfo }}</pre>
+        </details>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from "vue";
-import { useRouter, useRoute } from "vue-router";
-import API, { getNextAuthStep, checkAuthStatus, setAccessToken } from "@/api.js";
+<script setup>
+import { onMounted, ref, computed } from 'vue';
 
-export default {
-  name: "Verify2FA",
-  setup() {
-    const router = useRouter();
-    const route = useRoute();
+const API = import.meta.env.VITE_API_BASE || '/api';
 
-    const code = ref("");
-    const error = ref("");
-    const info = ref("");
-    const sending = ref(false);
-    const verifying = ref(false);
+const status = ref('idle');       // idle | ticket | ready
+const loading = ref(false);
+const error = ref('');
+const message = ref('');
+const code = ref('');
+const trustDevice = ref(false);
 
-    function sanitizeRedirect(path) {
-      if (!path) return "";
-      try { path = decodeURIComponent(String(path)); } catch {}
-      if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("//")) return "";
-      if (!path.startsWith("/")) return "";
-      const blocked = ["/login", "/auth/callback", "/verify-2fa", "/setup-2fa"];
-      return blocked.includes(path) ? "" : path;
+const debug = ref({
+  url: '',
+  cookies: '',
+  authStatusBefore: null,
+  emailSend: null,
+  verifyResp: null,
+  authStatusAfter: null,
+});
+
+const debugInfo = computed(() => JSON.stringify(debug.value, null, 2));
+
+async function getJSON(path, opts = {}) {
+  const res = await fetch(`${API}${path}`, { credentials: 'include', ...opts });
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text }; }
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function checkAuth(where = 'before') {
+  const r = await getJSON('/auth/status');
+  console.log(`📊 [Verify2FA] /auth/status (${where}) ->`, r);
+  debug.value[where === 'before' ? 'authStatusBefore' : 'authStatusAfter'] = r;
+  return r;
+}
+
+function hasOtpTicket() {
+  const c = document.cookie || '';
+  return /(?:^|;\s*)otpTicket=/.test(c);
+}
+
+async function ensureEmailSent() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const r = await getJSON('/2fa-email/send', { method: 'POST' });
+    console.log('📧 [Verify2FA] /2fa-email/send ->', r);
+    debug.value.emailSend = r;
+    if (!r.ok) {
+      error.value = r.body?.message || 'Failed to send verification email.';
+    } else {
+      message.value = 'Verification code sent to your email.';
     }
-    const safeRedirect = sanitizeRedirect(route.query.redirect);
+  } catch (e) {
+    console.error('❌ [Verify2FA] sendEmail failed', e);
+    error.value = 'Network error sending code.';
+  } finally {
+    loading.value = false;
+  }
+}
 
-    const onCodeInput = (e) => {
-      const digits = String(e.target.value || "").replace(/\D+/g, "").slice(0, 6);
-      code.value = digits;
-      error.value = "";
-    };
-
-    async function ensureContext() {
-      // Many backends require an OTP context cookie (otpTicket) before sending the code.
-      // This endpoint will create it when the user is authenticated but not yet 2FA-verified.
-      try {
-        await API.post("/2fa-email/context"); // idempotent
-      } catch (e) {
-        // If the endpoint doesn't exist, that's OK; backend may not need it.
-        if (e?.response?.status !== 404) {
-          throw e;
-        }
-      }
-    }
-
-    async function resend() {
-      error.value = "";
-      info.value = "";
-      sending.value = true;
-      try {
-        await ensureContext();
-        await API.post("/2fa-email/resend");
-        info.value = "Code sent. Please check your email.";
-      } catch (e) {
-        const msg = e?.response?.data?.msg || e?.response?.data?.message || e.message || "Failed to send code.";
-        error.value = msg;
-      } finally {
-        sending.value = false;
-      }
-    }
-
-    async function verify() {
-      error.value = "";
-      verifying.value = true;
-      try {
-        if (code.value.length !== 6) {
-          error.value = "Please enter the 6-digit code.";
-          return;
-        }
-        const { data } = await API.post("/2fa/verify", { token: code.value });
-        // On success, many backends re-issue cookies and/or return a short-lived access token
-        if (data?.accessToken) setAccessToken(data.accessToken);
-
-        const status = await checkAuthStatus();
-        if (!status?.isAuthenticated) {
-          throw new Error("Verification succeeded, but session not established.");
-        }
-
-        const role = status?.user?.role;
-        const fallback = role === "admin" ? "/admin-dashboard"
-                       : role === "partner" ? "/partner-dashboard"
-                       : "/dashboard";
-        router.replace(safeRedirect || fallback);
-      } catch (e) {
-        const msg = e?.response?.data?.msg || e?.response?.data?.message || e.message || "Verification failed.";
-        error.value = msg;
-      } finally {
-        verifying.value = false;
-      }
-    }
-
-    onMounted(async () => {
-      // If we reached this screen by mistake, nudge to the right place.
-      try {
-        const next = await getNextAuthStep();
-        if (next?.step === "dashboard") {
-          return router.replace(next.redirectTo || "/dashboard");
-        }
-        // Optional: pre-send a code upon arrival to reduce friction
-        await resend();
-      } catch {
-        /* ignore; manual resend still works */
-      }
+async function verify() {
+  loading.value = true;
+  error.value = '';
+  message.value = '';
+  try {
+    console.log('🔐 [Verify2FA] Submitting code:', code.value, 'trustDevice:', trustDevice.value);
+    const r = await getJSON('/2fa-email/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.value, trustThisDevice: trustDevice.value }),
     });
+    console.log('✅ [Verify2FA] /2fa-email/verify ->', r);
+    debug.value.verifyResp = r;
 
-    return { code, error, info, sending, verifying, onCodeInput, resend, verify };
-  },
-};
+    if (!r.ok) {
+      error.value = r.body?.message || 'Invalid code.';
+      return;
+    }
+
+    // After success, authCookie should be set; confirm:
+    await checkAuth('after');
+
+    // Redirect based on role or to dashboard/home
+    window.location.replace('/');
+  } catch (e) {
+    console.error('❌ [Verify2FA] verify failed', e);
+    error.value = 'Verification failed due to network error.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function resend() {
+  loading.value = true;
+  error.value = '';
+  message.value = '';
+  try {
+    const r = await getJSON('/2fa-email/resend', { method: 'POST' });
+    console.log('📨 [Verify2FA] /2fa-email/resend ->', r);
+    if (!r.ok) {
+      error.value = r.body?.message || 'Could not resend code.';
+    } else {
+      message.value = 'Code resent.';
+    }
+  } catch (e) {
+    console.error('❌ [Verify2FA] resend failed', e);
+    error.value = 'Network error resending code.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(async () => {
+  debug.value.url = window.location.href;
+  debug.value.cookies = document.cookie;
+  console.log('🌐 [Verify2FA] URL:', debug.value.url);
+  console.log('🍪 [Verify2FA] Cookies:', debug.value.cookies);
+
+  // See what backend thinks *right now*
+  await checkAuth('before');
+
+  // Only send email automatically if otpTicket is present
+  if (hasOtpTicket()) {
+    console.log('🎫 [Verify2FA] otpTicket cookie detected -> sending email code');
+    status.value = 'ticket';
+    await ensureEmailSent();
+  } else {
+    console.log('ℹ️ [Verify2FA] No otpTicket cookie. If you arrived here by mistake, auth flow may have skipped OAuth callback.');
+  }
+
+  status.value = 'ready';
+});
 </script>
 
 <style scoped>
-.verify-wrapper { display:flex; justify-content:center; padding:2rem 1rem; }
-.card { width: 100%; max-width: 520px; background:#111; border:1px solid #222; border-radius:16px; padding:24px; }
-h2 { margin:0 0 12px; }
-.row { margin: 12px 0; }
-.otp-input { width:100%; padding:.75rem 1rem; border-radius:10px; border:1px solid #2a2a2a; font-size:1.1rem; letter-spacing:0.12em; }
-.actions { display:flex; gap:.75rem; justify-content:flex-end; }
-button { padding:.6rem 1rem; border-radius:10px; border:1px solid #2a2a2a; background:#1f1f1f; color:#eee; cursor:pointer; }
-button.primary { background:#19c37d; color:#031d12; border:none; }
-button:disabled { opacity:.6; cursor:not-allowed; }
-.error { color:#ff6b6b; margin:.5rem 0; }
-.info  { color:#75d6a5; margin:.5rem 0; }
+.verify-2fa { display:grid; place-items:center; padding:2rem; }
+.card { width:min(560px, 94vw); background: var(--bb-surface, #111); border:1px solid var(--bb-border, #222); border-radius:12px; padding:1.25rem; }
+h1 { margin: 0 0 .75rem; }
+.hint { color: #aaa; display:flex; gap:.75rem; align-items:center; }
+.link { background:none; border:none; color:#7dcfff; text-decoration:underline; cursor:pointer; }
+form { display:grid; gap:.75rem; margin-top:1rem; }
+input[type="text"], input[type="tel"], input[type="password"], input:not([type]) {
+  background:#0b0b0b; border:1px solid #333; border-radius:10px; padding:.9rem 1rem; font-size:1.1rem; letter-spacing:.2em;
+}
+button[type="submit"] { padding:.8rem 1rem; border-radius:10px; border:none; background:#17b169; color:#001; font-weight:800; cursor:pointer; }
+.error { color:#ff8484; }
+.message { color:#9fe39f; }
+.trust { display:flex; gap:.5rem; align-items:center; font-size:.95rem; color:#bbb; }
+.debug { margin-top:1rem; }
+pre { white-space:pre-wrap; word-break:break-word; background:#0a0a0a; border:1px dashed #333; padding:.75rem; border-radius:10px; }
 </style>
