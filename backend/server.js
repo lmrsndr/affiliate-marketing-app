@@ -349,6 +349,36 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+
+// ───────────────────────────────────────────────────────────────
+// Cookie options helper (derive domain from request host)
+// ───────────────────────────────────────────────────────────────
+function getCookieBaseDomain(req) {
+  // Prefer configured env, else infer from Host header
+  const envDom = process.env.COOKIE_DOMAIN;
+  if (envDom && envDom.trim()) return envDom.trim();
+
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  // If host ends with .bundlebee.co.uk (api.bundlebee.co.uk, staging...), pin to parent
+  if (host.endsWith('.bundlebee.co.uk') || host === 'bundlebee.co.uk') {
+    return '.bundlebee.co.uk';
+  }
+  // Fallback: no explicit Domain (host-only cookie)
+  return undefined;
+}
+
+function getCookieOpts(req) {
+  const IS_HTTPS = true; // Render + Cloudflare are HTTPS
+  const baseDomain = getCookieBaseDomain(req);
+  return {
+    httpOnly: true,
+    secure: IS_HTTPS,
+    sameSite: 'None',
+    domain: baseDomain,     // .bundlebee.co.uk when applicable
+    path: '/',
+  };
+}
+
 // ───────────────────────────────────────────────────────────────
 // Routes
 // ───────────────────────────────────────────────────────────────
@@ -358,13 +388,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
 (() => {
   const handler = async (req, res) => {
     try {
-      const cookieOpts = {
-        httpOnly: true,
-        secure: IS_PROD,
-        sameSite: IS_PROD ? "None" : "Lax",
-        domain: IS_PROD ? COOKIE_DOMAIN : undefined,
-        path: "/",
-      };
+      const cookieOpts = getCookieOpts(req);
 
       // If this account requires 2FA (app or verified email 2FA), DO NOT issue real cookies yet.
       const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.enabled);
@@ -382,7 +406,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
       JWT_REFRESH_SECRET,
       { expiresIn: "30m" }
     );
-    res.cookie("refreshCookie", preRefresh, { ...cookieOpts, maxAge: 30 * 60 * 1000 });
+    res.cookie("refreshCookie", preRefresh, getCookieOpts(req));
 
 
         const otpTicket = jwt.sign(
@@ -390,7 +414,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
           JWT_OTP_SECRET || JWT_SECRET,
           { expiresIn: 300 } // 5 minutes
         );
-        res.cookie("otpTicket", otpTicket, { ...cookieOpts, maxAge: 5 * 60 * 1000 });
+        res.cookie("otpTicket", otpTicket, getCookieOpts(req));
         return res.redirect("https://bundlebee.co.uk/setup-2fa?oauth=1");
       }
 
@@ -406,8 +430,8 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
         { expiresIn: "7d" }
       );
 
-      res.cookie("authCookie", accessToken, { ...cookieOpts, maxAge: 15 * 60 * 1000 });
-      res.cookie("refreshCookie", refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
+      res.cookie("authCookie", accessToken, getCookieOpts(req));
+      res.cookie("refreshCookie", refreshToken, getCookieOpts(req));
 
       return res.redirect("https://bundlebee.co.uk/auth/callback");
     } catch (err) {
@@ -445,16 +469,9 @@ app.get("/auth/logout", (req, res) => {
 
 // Test cookie
 app.get("/api/test-cookie", (req, res) => {
-  res.cookie("test_cookie", "yes", {
-    httpOnly: true,
-    secure: IS_PROD,
-    sameSite: IS_PROD ? "None" : "Lax",
-    domain: IS_PROD ? COOKIE_DOMAIN : undefined,
-    path: "/",
+    res.cookie("test_cookie", "yes", getCookieOpts(req));
+    res.send("✅ test_cookie set");
   });
-  res.send("✅ test_cookie set");
-});
-
 // Health & readiness
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/api/health", (_req, res) => res.status(200).json({ ok: true }));
