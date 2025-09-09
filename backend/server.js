@@ -88,36 +88,62 @@ const app = express();
 
 
 
-// --- BB EARLY AUTH ROUTES (with attachUserIfPresent) ---
-try {
-  const __bb_attachUserIfPresent = require('./backend/middleware/attachUserIfPresent'); // fallback path
-} catch {}
-try {
-  // resolve correctly whether server.js is in backend/ or root
-  const attachUserIfPresent =
-    require('./middleware/attachUserIfPresent') ||
-    require('./backend/middleware/attachUserIfPresent');
 
-  if (!app._bbAuthEarlyAdded) {
-    app.get('/api/auth/__ping', (_req, res) => res.json({ ok: true, ping: 'auth-early' }));
 
-    app.get('/api/auth/status', attachUserIfPresent, (req, res) => {
-      const user = res.locals.user || null;
-      const mfaVerified = !!(req.auth && req.auth.mfaVerified);
-      res.json({ ok: true, user, mfaVerified, source: req.auth?.source || null, where: 'direct' });
-    });
 
-    app.get('/api/auth/next', attachUserIfPresent, (req, res) => {
-      const mfaVerified = !!(req.auth && req.auth.mfaVerified);
-      if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: 'login', where: 'direct' });
-      if (!mfaVerified) return res.json({ ok: true, next: 'verify-2fa', where: 'direct' });
-      return res.json({ ok: true, next: 'dashboard', where: 'direct' });
-    });
 
-    app._bbAuthEarlyAdded = true;
+// --- BB ROUTE DUMPER ---
+function bbListEndpoints(app) {
+  const out = [];
+  function pushRoute(base, r) {
+    const methods = Object.keys(r.methods || {}).filter(Boolean);
+    out.push({ path: (base ? base + r.path : r.path), methods });
   }
-} catch (e) { console.error('early auth routes error', e); }
-// --- END BB EARLY AUTH ROUTES ---
+  app._router?.stack?.forEach((layer) => {
+    if (layer.route) {
+      pushRoute('', layer.route);
+    } else if (layer.name === 'router' && layer.handle?.stack) {
+      const base = (layer.regexp && layer.regexp.fast_star) ? '*' :
+                   (layer.regexp && layer.regexp.fast_slash) ? '/' :
+                   (layer.regexp && layer.regexp.toString().replace(/^\/(\^)?/, '/').replace(/\/?\?.*$/, '')) || '';
+      layer.handle.stack.forEach((subl) => { if (subl.route) pushRoute(base, subl.route); });
+    }
+  });
+  return out;
+}
+app.get('/__bb/routes', (_req, res) => { res.json({ ok: true, routes: bbListEndpoints(app) }); });
+// --- END BB ROUTE DUMPER ---
+// --- BB GLOBAL LOGGER + SIGNATURE ---
+app.use((req, res, next) => {
+  res.setHeader('x-bb-sig', 'bb-sig-early-auth-20250909');
+  if (req.path && req.path.startsWith('/api/auth')) {
+    console.log('🛰  [REQ]', req.method, req.path);
+  }
+  next();
+});
+// --- END BB GLOBAL LOGGER + SIGNATURE ---
+// --- BB EARLY AUTH ROUTES (deterministic, no inner require) ---
+if (!app._bbAuthEarlyAdded) {
+  // very early ping to prove routing works in prod
+  app.get('/api/auth/__ping', (_req, res) => res.json({ ok: true, ping: 'auth-early' }));
+
+  // use the top-level import: const attachUserIfPresent = require('./middleware/attachUserIfPresent');
+  app.get('/api/auth/status', attachUserIfPresent, (req, res) => {
+    const user = res.locals.user || null;
+    const mfaVerified = !!(req.auth && req.auth.mfaVerified);
+    res.json({ ok: true, user, mfaVerified, source: req.auth?.source || null, where: 'early' });
+  });
+
+  app.get('/api/auth/next', attachUserIfPresent, (req, res) => {
+    const mfaVerified = !!(req.auth && req.auth.mfaVerified);
+    if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: 'login', where: 'early' });
+    if (!mfaVerified) return res.json({ ok: true, next: 'verify-2fa', where: 'early' });
+    return res.json({ ok: true, next: 'dashboard', where: 'early' });
+  });
+
+  app._bbAuthEarlyAdded = true;
+}
+// --- END BB EARLY AUTH ROUTES (deterministic) ---
 
 // --- BB HEALTH ROUTES (early) ---
 try {
