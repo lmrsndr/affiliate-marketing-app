@@ -79,6 +79,45 @@ const transporter = nodemailer.createTransport({
 // App init
 // ───────────────────────────────────────────────────────────────
 const app = express();
+
+// >>> BB AUTH MOUNT START >>>
+/**
+ * BundleBee auth mount block (right after app = express()):
+ * - trust proxy (for Secure cookies behind proxy)
+ * - cookie-parser + CORS for subdomain cookies
+ * - mounts /api/auth (before any catch-alls)
+ */
+try {
+  const __bb_attachUserIfPresent = require('./middleware/attachUserIfPresent');
+  const __bb_authRoutes = require('./routes/authRoutes');
+  const __bb_cors = require('cors');
+  const __bb_cookieParser = require('cookie-parser');
+
+  if (typeof app?.set === 'function') app.set('trust proxy', 1);
+  if (typeof app?.use === 'function') app.use(__bb_cookieParser());
+
+  // Allow bundlebee.co.uk and subdomains with credentials
+  if (typeof app?.use === 'function') {
+    const origins = [
+      /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
+      /^https?:\/\/bundlebee\.co\.uk$/,
+      /^https?:\/\/(.*\.)?bundlebee\.co\.uk$/,
+    ];
+    app.use(__bb_cors({ origin: origins, credentials: true }));
+  }
+
+  // Mount BEFORE catch-alls
+  if (typeof app?.use === 'function') {
+    app.use('/api/auth', __bb_attachUserIfPresent, __bb_authRoutes);
+  }
+
+  // Temporary health/route checks (safe)
+  app.get('/__bb/health', (_req, res) => res.json({ ok: true }));
+} catch (e) {
+  console.error('BB auth mount failed:', e);
+}
+// <<< BB AUTH MOUNT END <<<
+
 app.use(cookieParser());
 app.set('trust proxy', 1); // needed for Secure cookies behind proxy
 app.use(cors({ origin: [/^https?://(www.)?bundlebee.co.uk$/,/^https?://bundlebee.co.uk$/], credentials: true }));
@@ -352,37 +391,5 @@ app.use((req, res) => res.status(404).json({ msg: "API route not found" }));
 // Start
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`));
 
-// >>> BB AUTH MOUNT START >>>
-/**
- * BundleBee auth mount block (idempotent):
- * - trust proxy (Secure cookies behind proxy)
- * - cookie-parser + CORS for subdomain cookies
- * - mounts /api/auth with attachUserIfPresent
- */
-try {
-  const __bb_attachUserIfPresent = require('./middleware/attachUserIfPresent');
-  const __bb_authRoutes = require('./routes/authRoutes');
-  const __bb_cors = require('cors');
-  const __bb_cookieParser = require('cookie-parser');
 
-  if (typeof app?.set === 'function') app.set('trust proxy', 1);
-  if (typeof app?.use === 'function') app.use(__bb_cookieParser());
-
-  // CORS: allow bundlebee.co.uk + subdomains, with credentials
-  if (typeof app?.use === 'function') {
-    const origins = [
-      /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
-      /^https?:\/\/bundlebee\.co\.uk$/,
-      /^https?:\/\/(.*\.)?bundlebee\.co\.uk$/
-    ];
-    app.use(__bb_cors({ origin: origins, credentials: true }));
-  }
-
-  if (typeof app?.use === 'function') {
-    app.use('/api/auth', __bb_attachUserIfPresent, __bb_authRoutes);
-  }
-} catch (e) {
-  console.error('BB auth mount failed:', e);
-}
-// <<< BB AUTH MOUNT END <<<
 
