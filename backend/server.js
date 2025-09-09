@@ -86,6 +86,39 @@ const app = express();
 
 
 
+
+
+// --- BB EARLY AUTH ROUTES (with attachUserIfPresent) ---
+try {
+  const __bb_attachUserIfPresent = require('./backend/middleware/attachUserIfPresent'); // fallback path
+} catch {}
+try {
+  // resolve correctly whether server.js is in backend/ or root
+  const attachUserIfPresent =
+    require('./middleware/attachUserIfPresent') ||
+    require('./backend/middleware/attachUserIfPresent');
+
+  if (!app._bbAuthEarlyAdded) {
+    app.get('/api/auth/__ping', (_req, res) => res.json({ ok: true, ping: 'auth-early' }));
+
+    app.get('/api/auth/status', attachUserIfPresent, (req, res) => {
+      const user = res.locals.user || null;
+      const mfaVerified = !!(req.auth && req.auth.mfaVerified);
+      res.json({ ok: true, user, mfaVerified, source: req.auth?.source || null, where: 'direct' });
+    });
+
+    app.get('/api/auth/next', attachUserIfPresent, (req, res) => {
+      const mfaVerified = !!(req.auth && req.auth.mfaVerified);
+      if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: 'login', where: 'direct' });
+      if (!mfaVerified) return res.json({ ok: true, next: 'verify-2fa', where: 'direct' });
+      return res.json({ ok: true, next: 'dashboard', where: 'direct' });
+    });
+
+    app._bbAuthEarlyAdded = true;
+  }
+} catch (e) { console.error('early auth routes error', e); }
+// --- END BB EARLY AUTH ROUTES ---
+
 // --- BB HEALTH ROUTES (early) ---
 try {
   if (!app._bbHealthAdded) {
