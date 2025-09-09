@@ -92,6 +92,37 @@ const app = express();
 
 
 
+
+
+// --- BB CANONICAL CORS (early) ---
+app.set('trust proxy', 1);
+app.use(cookieParser());
+
+const BB_ALLOWED_ORIGINS = [
+  /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
+  /^https?:\/\/bundlebee\.co\.uk$/,
+  // allow any subdomain like api., staging., preview.
+  /^https?:\/\/([a-z0-9-]+\.)*bundlebee\.co\.uk$/,
+  // local dev (optional)
+  /^http:\/\/localhost:\d+$/
+];
+
+const bbCors = cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // curl / server-to-server
+    const ok = BB_ALLOWED_ORIGINS.some(re => re.test(origin));
+    return ok ? cb(null, true) : cb(new Error('Not allowed by CORS: ' + origin));
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+});
+
+// Preflight & main
+app.options('*', bbCors);
+app.use(bbCors);
+// --- END BB CANONICAL CORS ---
+
 // --- BB ROUTE DUMPER ---
 function bbListEndpoints(app) {
   const out = [];
@@ -185,7 +216,7 @@ app.set('trust proxy', 1); // needed for Secure cookies behind proxy
     // optional: any subdomain like api., staging., etc.
     /^https?:\/\/([a-z0-9-]+\.)*bundlebee\.co\.uk$/
   ];
-  app.use(cors({ origin: origins, credentials: true }));
+  /* removed old CORS block */
 }
 app.set("trust proxy", 1);
 
@@ -227,17 +258,7 @@ const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigin
   .map((s) => s.trim())
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin || parsedAllowlist.includes(origin)) return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+/* removed old CORS block */
 
 // Parsers & performance
 app.use(compression());
