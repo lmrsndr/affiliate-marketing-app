@@ -84,6 +84,18 @@ const app = express();
 
 
 
+
+
+// --- BB HEALTH ROUTES (early) ---
+try {
+  if (!app._bbHealthAdded) {
+    app.get('/__bb/health', (_req, res) => res.status(200).json({ ok: true, where: '__bb' }));
+    app.get('/api/health',   (_req, res) => res.status(200).json({ ok: true, where: 'api' }));
+    app._bbHealthAdded = true;
+  }
+} catch (e) { console.error('health routes error', e); }
+// --- END BB HEALTH ROUTES ---
+
 // >>> BB AUTH MOUNT START >>>
 try {
   const __bb_attachUserIfPresent = require('./middleware/attachUserIfPresent');
