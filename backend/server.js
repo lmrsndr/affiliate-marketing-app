@@ -340,6 +340,7 @@ app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
 app.use("/api/partner", requireVerified2FA, require("./routes/partnerRoutes"));
 
 app.use("/api/boxes", require("./routes/boxRoutes"));
+
 // >>> BB AUTH MOUNT START >>>
 /**
  * BundleBee auth mount block (right after app = express()):
