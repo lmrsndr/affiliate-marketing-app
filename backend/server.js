@@ -178,7 +178,15 @@ try {
 
 app.use(cookieParser());
 app.set('trust proxy', 1); // needed for Secure cookies behind proxy
-app.use(cors({ origin: [/^https?://(www.)?bundlebee.co.uk$/,/^https?://bundlebee.co.uk$/], credentials: true }));
+{
+  const origins = [
+    /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
+    /^https?:\/\/bundlebee\.co\.uk$/,
+    // optional: any subdomain like api., staging., etc.
+    /^https?:\/\/([a-z0-9-]+\.)*bundlebee\.co\.uk$/
+  ];
+  app.use(cors({ origin: origins, credentials: true }));
+}
 app.set("trust proxy", 1);
 
 // DB
