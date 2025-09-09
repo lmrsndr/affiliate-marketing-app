@@ -94,6 +94,22 @@ const app = express();
 
 
 
+
+
+// --- BB WHOAMI (debug-only) ---
+app.get('/api/auth/whoami', attachUserIfPresent, (req, res) => {
+  res.json({
+    ok: true,
+    sawCookies: {
+      authCookie: !!(req.cookies && req.cookies.authCookie),
+      refreshCookie: !!(req.cookies && req.cookies.refreshCookie),
+    },
+    auth: req.auth || null,
+    user: res.locals.user || null,
+    where: 'whoami'
+  });
+});
+// --- END BB WHOAMI ---
 // --- BB CANONICAL CORS (early) ---
 app.set('trust proxy', 1);
 app.use(cookieParser());
