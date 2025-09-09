@@ -355,10 +355,9 @@ app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${NODE_
 // >>> BB AUTH MOUNT START >>>
 /**
  * BundleBee auth mount block (idempotent):
- * - Sets trust proxy (for Secure cookies behind proxy)
- * - Ensures cookie parser + CORS for subdomain cookies
- * - Mounts /api/auth with attachUserIfPresent before routes
- * Variables are uniquely named to avoid collisions with existing code.
+ * - trust proxy (Secure cookies behind proxy)
+ * - cookie-parser + CORS for subdomain cookies
+ * - mounts /api/auth with attachUserIfPresent
  */
 try {
   const __bb_attachUserIfPresent = require('./middleware/attachUserIfPresent');
@@ -366,27 +365,24 @@ try {
   const __bb_cors = require('cors');
   const __bb_cookieParser = require('cookie-parser');
 
-  // Trust proxy (Render/NGINX/etc)
-  if (typeof app.set === 'function') app.set('trust proxy', 1);
+  if (typeof app?.set === 'function') app.set('trust proxy', 1);
+  if (typeof app?.use === 'function') app.use(__bb_cookieParser());
 
-  // Cookie parser (if not already added earlier, adding again is harmless)
-  if (typeof app.use === 'function') app.use(__bb_cookieParser());
-
-  // CORS for app <-> api subdomains
-  if (typeof app.use === 'function') {
+  // CORS: allow bundlebee.co.uk + subdomains, with credentials
+  if (typeof app?.use === 'function') {
     const origins = [
       /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
       /^https?:\/\/bundlebee\.co\.uk$/,
-      /^https?:\/\/(.*\.)?bundlebee\.co\.uk$/   // allow other subdomains if needed
+      /^https?:\/\/(.*\.)?bundlebee\.co\.uk$/
     ];
     app.use(__bb_cors({ origin: origins, credentials: true }));
   }
 
-  // Mount /api/auth
-  if (typeof app.use === 'function') {
+  if (typeof app?.use === 'function') {
     app.use('/api/auth', __bb_attachUserIfPresent, __bb_authRoutes);
   }
 } catch (e) {
   console.error('BB auth mount failed:', e);
 }
 // <<< BB AUTH MOUNT END <<<
+
