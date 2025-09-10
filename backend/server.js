@@ -79,7 +79,17 @@ const transporter = nodemailer.createTransport({
 // App init
 // ───────────────────────────────────────────────────────────────
 const app = express();
-app.get('/api/auth/debug/cookies', (req, res) => {  res.json({     saw: { hasAuth: # Insert a tiny inspector early in server.js if it doesn't exist(req.cookies && req.cookies.authCookie), hasRefresh: !!(req.cookies && req.cookies.refreshCookie) },    host: req.headers['host'], xfh: req.headers['x-forwarded-host'] || null  });});
+app.get('/api/auth/debug/cookies', (req, res) => {
+  res.json({
+    ok: true,
+    saw: {
+      hasAuth: !!(req.cookies && req.cookies.authCookie),
+      hasRefresh: !!(req.cookies && req.cookies.refreshCookie)
+    },
+    host: req.headers['host'],
+    xfh: req.headers['x-forwarded-host'] || null
+  });
+});});
 
 
 
