@@ -1,16 +1,17 @@
+import { apiFetch } from './api';
+
 export async function fetchAuthStatus() {
   try {
-    const res = await fetch('/api/auth/status', { credentials: 'include' });
-    if (!res.ok) return { ok:false };
-    const json = await res.json();
-    return json;
+    const res = await apiFetch('/auth/status');
+    if (!res.ok) return { ok: false };
+    return await res.json();
   } catch {
-    return { ok:false };
+    return { ok: false };
   }
 }
 
 /**
- * Decide where the app should send the user next based on server truth.
+ * Decide where to send the user based on server truth.
  * server returns: { ok:true, user, mfaVerified, ... }
  */
 export async function decideNext() {

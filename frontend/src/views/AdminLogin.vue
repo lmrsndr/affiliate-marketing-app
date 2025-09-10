@@ -20,17 +20,15 @@
 
     <p v-if="error" class="err">{{ error }}</p>
 
-    <div class="aux">
-      <RouterLink to="/register">Create New Account</RouterLink>
-      <span> · </span>
-      <RouterLink to="/forgot-password">Forgot Password?</RouterLink>
-    </div>
+    <p style="margin-top: .75rem">
+      <router-link to="/register">Create New Account</router-link>
+      ·
+      <router-link to="/forgot-password">Forgot Password?</router-link>
+    </p>
 
-    <div class="or">or</div>
+    <div style="margin: 1rem 0; text-align:center">or</div>
 
-    <button class="google" @click="googleSignIn" :disabled="loading">
-      Login with Google
-    </button>
+    <a class="google-btn" href="/auth/google">Login with Google</a>
 
     <details style="margin-top:1rem">
       <summary>Debug</summary>
@@ -38,80 +36,78 @@
 email: {{ email }}
 loading: {{ loading }}
 error: {{ error }}
-API_ORIGIN: {{ API_ORIGIN }}
       </pre>
     </details>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useRouter, RouterLink } from "vue-router";
-
-// Prefer window.__BB_API_ORIGIN (your app already logs the backend URL)
-// then Vite env, finally a safe default to your production API origin.
-const API_ORIGIN =
-  (window.__BB_API_ORIGIN || import.meta.env.VITE_API_ORIGIN || "https://api.bundlebee.co.uk").replace(/\/+$/,"");
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { apiFetch } from '@/lib/api';
 
 const router = useRouter();
-const email = ref("");
-const password = ref("");
+const email = ref('');
+const password = ref('');
 const loading = ref(false);
-const error = ref("");
+const error = ref('');
 
 async function submit() {
-  error.value = "";
+  error.value = '';
   loading.value = true;
   try {
-    const res = await fetch(`${API_ORIGIN}/api/auth/local/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email: email.value, password: password.value }),
+    const res = await apiFetch('/auth/local/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.value, password: password.value })
     });
 
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok) {
-      error.value = data?.message || "Invalid credentials";
+
+    if (!res.ok) {
+      error.value = data?.message || data?.error || 'Invalid credentials';
       return;
     }
 
-    // server decides next: login -> verify-2fa -> dashboard
-    if (data.next === "verify-2fa") {
-      router.push({ path: "/setup-2fa", query: { oauth: "0" } });
+    // On success, the server set cookies (SameSite=None; Secure; Domain=.bundlebee.co.uk)
+    // Decide where to go next (2FA or dashboard).
+    if (data?.next === 'verify-2fa') {
+      router.push({ path: '/verify-2fa' });
     } else {
-      router.push("/dashboard");
+      router.push({ path: '/dashboard' });
     }
-  } catch {
-    error.value = "Network or server error";
+  } catch (e) {
+    error.value = 'Network or server error';
   } finally {
     loading.value = false;
   }
-}
-
-function googleSignIn() {
-  // Kick off OAuth on the API origin
-  window.location.href = `${API_ORIGIN}/auth/google`;
 }
 </script>
 
 <style scoped>
 .login {
-  max-width: 480px;
+  max-width: 520px;
   margin: 2rem auto;
   padding: 1.5rem;
   border: 1px solid #333;
   border-radius: 12px;
   background: #0b0b0b;
 }
-h1 { text-align: center; margin-bottom: 1rem; }
-.field { margin-bottom: .75rem; display: grid; gap: .25rem; }
+.field { margin-bottom: 0.75rem; display: grid; gap: .25rem; }
 .field input { width: 100%; padding: .5rem; }
-button { padding: .6rem .9rem; border-radius: 8px; }
-.err { color: #ff6b6b; margin-top: .75rem; }
-.aux { margin-top: .75rem; text-align: center; }
-.or { text-align: center; opacity: .7; margin: .75rem 0; }
-.google { width: 100%; }
+button { padding: .5rem .75rem; }
+.err { color: #f66; margin-top: .75rem; }
+.google-btn {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  padding: .6rem .9rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #eee;
+  color: #111;
+  text-decoration: none;
+}
 .debug {
   white-space: pre-wrap;
   background: #111; color: #ddd;
