@@ -15,13 +15,13 @@ const {
 
 const IS_PROD = NODE_ENV === 'production';
 
-// ---------- cookie helpers (mirror server.js) ----------
+// --- cookie helpers (mirrors server.js) ---
 function getCookieBaseDomain(req) {
   const envDom = process.env.COOKIE_DOMAIN;
   if (envDom && envDom.trim()) return envDom.trim();
   const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
   if (host.endsWith('.bundlebee.co.uk') || host === 'bundlebee.co.uk') return '.bundlebee.co.uk';
-  return undefined; // host-only cookie if unknown (dev)
+  return undefined;
 }
 function cookieOpts(req, maxAge) {
   return {
@@ -34,57 +34,105 @@ function cookieOpts(req, maxAge) {
   };
 }
 
-// ---------- POST /api/auth/local/login ----------
+// -------------------------
+// POST /api/auth/register
+// body: { name, email, password }
+// -------------------------
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const emailLC = (email || '').trim().toLowerCase();
+
+    if (!emailLC || !password || password.length < 8) {
+      return res.status(400).json({ ok: false, message: 'Invalid payload' });
+    }
+
+    const existing = await User.findOne({ email: emailLC });
+    if (existing) {
+      return res.status(409).json({ ok: false, message: 'Email already registered' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await User.create({
+      name: name || '',
+      email: emailLC,
+      passwordHash,
+      localEnabled: true,
+      twoFAVerified: false,
+    });
+
+    // if you want auto-login after register, uncomment this block:
+    /*
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role, mfaVerified: false },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+    const refreshToken = jwt.sign(
+      { id: user._id, role: user.role, mfaVerified: false },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.cookie('authCookie', accessToken, cookieOpts(req, 15 * 60 * 1000));
+    res.cookie('refreshCookie', refreshToken, cookieOpts(req, 7 * 24 * 60 * 60 * 1000));
+    */
+
+    return res.status(201).json({ ok: true, user: { id: user._id, email: user.email, role: user.role } });
+  } catch (e) {
+    console.error('register error:', e);
+    return res.status(500).json({ ok: false, message: 'Server error' });
+  }
+});
+
+// ---------------------
+// POST /api/auth/login
+// body: { email, password }
+// ---------------------
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    const emailLC = (email || '').trim().toLowerCase();
+
+    if (!emailLC || !password) {
+      return res.status(400).json({ ok: false, message: 'Invalid payload' });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    // IMPORTANT: select +passwordHash because schema has select:false
+    const user = await User.findOne({ email: emailLC })
+      .select('+passwordHash')
+      .lean(false); // need a mongoose doc for compare logic consistency
 
-    // passwordHash must be selectable
-    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
-    if (!user || !user.passwordHash) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+    if (!user || user.localEnabled === false || !user.passwordHash) {
+      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
     }
 
-    const ok = await bcrypt.compare(String(password), user.passwordHash);
-    if (!ok) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) {
+      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
     }
 
-    const cookieBase = cookieOpts(req);
-
-    // 2FA decision: if enabled (email2FA or TOTP) -> set otpTicket + short refresh; else full cookies
-    const twoFAEnabled = !!(user?.twoFA?.enabled || user?.email2FA?.enabled);
-
-    if (twoFAEnabled) {
-      // Clear any existing cookies
-      res.clearCookie('authCookie', cookieBase);
-      res.clearCookie('refreshCookie', cookieBase);
-
-      // short-lived pre-2FA refresh cookie (purpose: pre2fa)
+    // If user requires 2FA -> set pre-2FA cookies (same approach as Google flow)
+    const requires2FA = !!(user.twoFA?.enabled || user.email2FA?.enabled);
+    if (requires2FA) {
       const preRefresh = jwt.sign(
         { id: user._id, role: user.role, mfaVerified: false, purpose: 'pre2fa' },
         JWT_REFRESH_SECRET,
         { expiresIn: '30m' }
       );
-      res.cookie('refreshCookie', preRefresh, { ...cookieBase, maxAge: 30 * 60 * 1000 });
+      res.cookie('refreshCookie', preRefresh, cookieOpts(req, 30 * 60 * 1000));
 
-      // otpTicket to validate /verify-2fa step
       const otpTicket = jwt.sign(
         { sub: String(user._id), purpose: 'otp' },
         JWT_OTP_SECRET || JWT_SECRET,
-        { expiresIn: 300 } // 5m
+        { expiresIn: 300 } // 5 min
       );
-      res.cookie('otpTicket', otpTicket, { ...cookieBase, maxAge: 5 * 60 * 1000 });
+      res.cookie('otpTicket', otpTicket, cookieOpts(req, 5 * 60 * 1000));
 
-      return res.json({ success: true, next: 'verify-2fa' });
+      return res.json({ ok: true, next: 'verify-2fa' });
     }
 
-    // No 2FA: issue full cookies
+    // No 2FA -> full session cookies
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role, mfaVerified: true },
       JWT_SECRET,
@@ -96,51 +144,14 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.cookie('authCookie', accessToken, { ...cookieBase, maxAge: 15 * 60 * 1000 });
-    res.cookie('refreshCookie', refreshToken, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.cookie('authCookie', accessToken, cookieOpts(req, 15 * 60 * 1000));
+    res.cookie('refreshCookie', refreshToken, cookieOpts(req, 7 * 24 * 60 * 60 * 1000));
 
-    return res.json({ success: true, next: 'dashboard', user: { id: user._id, email: user.email, role: user.role } });
+    return res.json({ ok: true, next: 'dashboard' });
   } catch (e) {
-    console.error('local login error', e);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('login error:', e);
+    return res.status(500).json({ ok: false, message: 'Server error' });
   }
-});
-
-// ---------- OPTIONAL: POST /api/auth/local/register ----------
-// You can keep this disabled if you register admins manually.
-// To enable, remove the early return below.
-router.post('/register', async (req, res) => {
-  // return res.status(403).json({ success: false, message: 'Registration disabled' });
-  try {
-    const { email, password, name } = req.body || {};
-    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password are required.' });
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) return res.status(409).json({ success: false, message: 'Email already registered.' });
-
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const user = await User.create({
-      email: normalizedEmail,
-      name: name || normalizedEmail.split('@')[0],
-      passwordHash,
-      role: 'user',
-      twoFAVerified: false,
-    });
-
-    return res.status(201).json({ success: true, user: { id: user._id, email: user.email } });
-  } catch (e) {
-    console.error('local register error', e);
-    return res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// ---------- GET /api/auth/local/logout ----------
-router.get('/logout', (req, res) => {
-  const base = cookieOpts(req);
-  res.clearCookie('authCookie', base);
-  res.clearCookie('refreshCookie', base);
-  return res.json({ success: true, message: 'Logged out' });
 });
 
 module.exports = router;
