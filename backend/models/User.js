@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const UserSchema = new mongoose.Schema({
+  // Local auth
+  passwordHash: { type: String, select: false },
+  localEnabled: { type: Boolean, default: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, trim: true },
   password: { type: String, required: false, select: false },
