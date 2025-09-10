@@ -490,6 +490,7 @@ app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // API routes
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/auth/local", require("./routes/localAuthRoutes"));
 
 // ✅ Enforce verified 2FA for admin & partner APIs
 app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
