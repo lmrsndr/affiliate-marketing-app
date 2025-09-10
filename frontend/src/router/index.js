@@ -72,6 +72,8 @@ async function checkAuthState() {
 
 // ✅ Routes
 const routes = [
+  { path: '/forgot-password', name: 'ForgotPassword', component: () => import('@/views/ForgotPassword.vue') },
+  { path: '/register', name: 'RegisterUser', component: () => import('@/views/RegisterUser.vue') },
   { path: '/debug-auth', name: 'DebugAuth', component: () => import('@/views/DebugAuthStatus.vue') },
   { path: '/setup-2fa', name: 'Setup2FA', component: () => import('../views/Auth/Verify2FA.vue'), meta: { public: true } },
   { path: "/", component: HomeView },
