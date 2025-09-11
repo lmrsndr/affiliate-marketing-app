@@ -1,79 +1,140 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const User = require("../models/User");
 
-const {
-  NODE_ENV = 'development',
-  JWT_SECRET,
-  JWT_REFRESH_SECRET,
-  COOKIE_DOMAIN = '.bundlebee.co.uk',
-} = process.env;
-
-const IS_PROD = NODE_ENV === 'production';
 const router = express.Router();
 
-// ---- cookie helpers (aligned with server.js) ----
+const {
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
+  JWT_OTP_SECRET,
+  NODE_ENV = "production",
+} = process.env;
+
+// ───────────────────────────────────────────────────────────────
+// Cookie helpers (mirror server.js behavior)
+// ───────────────────────────────────────────────────────────────
 function getCookieBaseDomain(req) {
   const envDom = process.env.COOKIE_DOMAIN;
   if (envDom && envDom.trim()) return envDom.trim();
-  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
-  if (host.endsWith('.bundlebee.co.uk') || host === 'bundlebee.co.uk') return '.bundlebee.co.uk';
+
+  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase();
+  if (host.endsWith(".bundlebee.co.uk") || host === "bundlebee.co.uk") return ".bundlebee.co.uk";
   return undefined;
 }
-function cookieOpts(req, maxAge) {
-  const baseDomain = getCookieBaseDomain(req);
+function cookieOpts(req, maxAgeMs) {
   return {
     httpOnly: true,
-    secure: IS_PROD,
-    sameSite: 'None',         // allow subdomain requests
-    domain: IS_PROD ? baseDomain : undefined,
-    path: '/',
-    maxAge,
+    secure: true, // Render/Cloudflare terminate TLS
+    sameSite: "None",
+    domain: getCookieBaseDomain(req),
+    path: "/",
+    ...(maxAgeMs ? { maxAge: maxAgeMs } : {}),
   };
 }
 
-router.post('/local/login', async (req, res) => {
+// ───────────────────────────────────────────────────────────────
+// POST /api/auth/local/register
+// body: { email, password, name? }
+// ───────────────────────────────────────────────────────────────
+router.post("/register", async (req, res) => {
+  try {
+    const { email, password, name } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, message: "Email and password required" });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) return res.status(409).json({ ok: false, message: "User already exists" });
+
+    const hash = await bcrypt.hash(password, 12);
+    const user = await User.create({
+      email: email.toLowerCase().trim(),
+      password: hash, // <- store in `password` (matches model below)
+      name: name || email.split("@")[0],
+      role: "user",
+      localEnabled: true,
+      twoFAVerified: false,
+    });
+
+    return res.status(201).json({ ok: true, user: { id: user._id, email: user.email } });
+  } catch (err) {
+    console.error("local/register error:", err);
+    return res.status(500).json({ ok: false, message: "server_error" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────
+// POST /api/auth/local/login
+// body: { email, password }
+//   - If 2FA enabled → issues pre-2FA cookies and returns { need2fa: true }
+//   - Else → sets auth/refresh cookies and returns { ok: true }
+// ───────────────────────────────────────────────────────────────
+router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) {
-      return res.status(400).json({ ok: false, message: 'Email and password required' });
+      return res.status(400).json({ ok: false, message: "Email and password required" });
     }
 
-    // We need passwordHash field; make sure it is selected
-    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+passwordHash');
-    if (!user || !user.localEnabled || !user.passwordHash) {
-      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
+    // IMPORTANT: select '+password' (schema uses select:false)
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
+    if (!user || user.localEnabled === false || !user.password) {
+      return res.status(401).json({ ok: false, message: "Invalid credentials" });
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      return res.status(401).json({ ok: false, message: 'Invalid credentials' });
-    }
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) return res.status(401).json({ ok: false, message: "Invalid credentials" });
 
-    // MFA check – if the account *requires* 2FA we can short-circuit differently.
     const twoFAEnabled = !!(user.twoFA?.enabled || user.email2FA?.enabled);
 
-    const accessPayload  = { id: user._id, email: user.email, role: user.role, mfaVerified: !twoFAEnabled };
-    const refreshPayload = { id: user._id, role: user.role,  mfaVerified: !twoFAEnabled };
-
-    const accessToken  = jwt.sign(accessPayload,  JWT_SECRET,          { expiresIn: '15m' });
-    const refreshToken = jwt.sign(refreshPayload, JWT_REFRESH_SECRET,   { expiresIn: '7d' });
-
-    // IMPORTANT: set both cookies with *identical* options (except maxAge)
-    res.cookie('authCookie',    accessToken,  cookieOpts(req, 15 * 60 * 1000));
-    res.cookie('refreshCookie', refreshToken, cookieOpts(req, 7 * 24 * 60 * 60 * 1000));
-
-    // If 2FA is required, tell the client to go to /verify-2fa (cookies still issued but mfaVerified=false)
     if (twoFAEnabled) {
-      return res.json({ ok: true, next: 'verify-2fa', user: { id: user._id, email: user.email, role: user.role } });
+      // Pre-2FA: no full session yet
+      res.clearCookie("authCookie", cookieOpts(req));
+      res.clearCookie("refreshCookie", cookieOpts(req));
+
+      try {
+        await User.updateOne({ _id: user._id }, { $set: { "email2FA.verified": false } });
+      } catch (e) {
+        console.warn("email2FA reset failed:", e?.message || e);
+      }
+
+      const preRefresh = jwt.sign(
+        { id: user._id, role: user.role, mfaVerified: false, purpose: "pre2fa" },
+        JWT_REFRESH_SECRET,
+        { expiresIn: "30m" }
+      );
+      res.cookie("refreshCookie", preRefresh, cookieOpts(req, 30 * 60 * 1000));
+
+      const otpTicket = jwt.sign(
+        { sub: String(user._id), purpose: "otp" },
+        JWT_OTP_SECRET || JWT_SECRET,
+        { expiresIn: 300 } // 5m
+      );
+      res.cookie("otpTicket", otpTicket, cookieOpts(req, 5 * 60 * 1000));
+
+      return res.json({ ok: true, need2fa: true });
     }
 
-    // Otherwise go straight to dashboard
-    return res.json({ ok: true, next: 'dashboard', user: { id: user._id, email: user.email, role: user.role } });
-  } catch (e) {
-    console.error('local/login error:', e);
-    return res.status(500).json({ ok: false, message: 'Server error' });
+    // Normal session (no 2FA)
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role, mfaVerified: true },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+    const refreshToken = jwt.sign(
+      { id: user._id, role: user.role, mfaVerified: true },
+      JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie("authCookie", accessToken, cookieOpts(req, 15 * 60 * 1000));
+    res.cookie("refreshCookie", refreshToken, cookieOpts(req, 7 * 24 * 60 * 60 * 1000));
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("local/login error:", err);
+    return res.status(500).json({ ok: false, message: "server_error" });
   }
 });
 
