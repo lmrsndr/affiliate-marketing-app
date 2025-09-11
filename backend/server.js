@@ -485,8 +485,6 @@ app.get("/", (_req, res) => {
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // API routes
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/auth", require("./routes/localAuthRoutes")); // alias so /api/auth/register works
 app.use("/api/auth/local", require("./routes/localAuthRoutes"));
 
 // ✅ Enforce verified 2FA for admin & partner APIs
