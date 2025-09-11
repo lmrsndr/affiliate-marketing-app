@@ -526,7 +526,7 @@ app.use((req, res, next) => {
   // let /api/auth/* and /__bb/* flow to later handlers
   if (p.startsWith('/api/auth') || p.startsWith('/__bb/')) return next();
   return res.status(404).json({ msg: "API route not found" });
-});
+
 
 // Start
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`));
