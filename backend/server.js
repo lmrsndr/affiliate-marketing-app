@@ -79,6 +79,7 @@ const transporter = nodemailer.createTransport({
 // App init
 // ───────────────────────────────────────────────────────────────
 const app = express();
+
 app.get('/api/auth/debug/cookies', (req, res) => {
   res.json({
     ok: true,
@@ -89,23 +90,7 @@ app.get('/api/auth/debug/cookies', (req, res) => {
     host: req.headers['host'],
     xfh: req.headers['x-forwarded-host'] || null
   });
-});});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}); // ← fixed: removed extra "});"
 
 // --- BB WHOAMI (debug-only) ---
 app.get('/api/auth/whoami', attachUserIfPresent, (req, res) => {
@@ -123,7 +108,7 @@ app.get('/api/auth/whoami', attachUserIfPresent, (req, res) => {
 // --- END BB WHOAMI ---
 // --- BB CANONICAL CORS (early) ---
 app.set('trust proxy', 1);
-app.use(cookieParser());
+app.use(cookieParser()); // NOTE: cookieParser is used multiple times later (safe but redundant)
 
 const BB_ALLOWED_ORIGINS = [
   /^https?:\/\/(www\.)?bundlebee\.co\.uk$/,
@@ -234,7 +219,7 @@ try {
 } catch (e) { console.error('BB auth mount failed:', e); }
 // <<< BB AUTH MOUNT END <<<
 
-app.use(cookieParser());
+app.use(cookieParser()); // duplicate usage (safe but redundant)
 app.set('trust proxy', 1); // needed for Secure cookies behind proxy
 {
   const origins = [
@@ -291,7 +276,7 @@ const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigin
 app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser()); // duplicate usage (safe but redundant)
 
 // Session
 app.use(
@@ -300,7 +285,7 @@ app.use(
       mongoUrl: MONGO_URI,
       collectionName: "sessions",
       ttl: 14 * 24 * 60 * 60,
-    }),
+    } ),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -360,7 +345,6 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-
 // ───────────────────────────────────────────────────────────────
 // Cookie options helper (derive domain from request host)
 // ───────────────────────────────────────────────────────────────
@@ -405,20 +389,20 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
       const twoFAEnabled = !!(req.user?.twoFA?.enabled || req.user?.email2FA?.enabled);
 
       if (twoFAEnabled) {
-      // 🧹 Clear any stale cookies before starting a new 2FA session
-      res.clearCookie("authCookie",  cookieOpts);
-      res.clearCookie("refreshCookie", cookieOpts);
-      try {
-        await User.updateOne({ _id: req.user._id }, { $set: { "email2FA.verified": false } });
-      } catch (e) { console.warn("email2FA reset failed:", e?.message || e); }
-    // ✅ Short-lived pre-2FA refresh cookie to allow /api/2fa-* endpoints (not a full session)
-    const preRefresh = jwt.sign(
-      { id: req.user._id, role: req.user.role, mfaVerified: false, purpose: "pre2fa" },
-      JWT_REFRESH_SECRET,
-      { expiresIn: "30m" }
-    );
-    res.cookie("refreshCookie", preRefresh, getCookieOpts(req));
+        // 🧹 Clear any stale cookies before starting a new 2FA session
+        res.clearCookie("authCookie",  cookieOpts);
+        res.clearCookie("refreshCookie", cookieOpts);
+        try {
+          await User.updateOne({ _id: req.user._id }, { $set: { "email2FA.verified": false } });
+        } catch (e) { console.warn("email2FA reset failed:", e?.message || e); }
 
+        // ✅ Short-lived pre-2FA refresh cookie to allow /api/2fa-* endpoints (not a full session)
+        const preRefresh = jwt.sign(
+          { id: req.user._id, role: req.user.role, mfaVerified: false, purpose: "pre2fa" },
+          JWT_REFRESH_SECRET,
+          { expiresIn: "30m" }
+        );
+        res.cookie("refreshCookie", preRefresh, getCookieOpts(req));
 
         const otpTicket = jwt.sign(
           { sub: String(req.user._id), purpose: "otp" },
@@ -480,9 +464,10 @@ app.get("/auth/logout", (req, res) => {
 
 // Test cookie
 app.get("/api/test-cookie", (req, res) => {
-    res.cookie("test_cookie", "yes", getCookieOpts(req));
-    res.send("✅ test_cookie set");
-  });
+  res.cookie("test_cookie", "yes", getCookieOpts(req));
+  res.send("✅ test_cookie set");
+});
+
 // Health & readiness
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/api/health", (_req, res) => res.status(200).json({ ok: true }));
@@ -509,8 +494,6 @@ app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
 app.use("/api/partner", requireVerified2FA, require("./routes/partnerRoutes"));
 
 app.use("/api/boxes", require("./routes/boxRoutes"));
-
-
 app.use("/api", require("./routes/subscriptionRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/user", require("./routes/userRoutes"));
@@ -526,10 +509,7 @@ app.use((req, res, next) => {
   // let /api/auth/* and /__bb/* flow to later handlers
   if (p.startsWith('/api/auth') || p.startsWith('/__bb/')) return next();
   return res.status(404).json({ msg: "API route not found" });
-
+}); // ← fixed: added the missing closer
 
 // Start
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${NODE_ENV})`));
-
-
-
