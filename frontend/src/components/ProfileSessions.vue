@@ -51,7 +51,7 @@ const formatDate = (date) => new Date(date).toLocaleString()
 const fetchSessions = async () => {
   loading.value = true
   try {
-    const { data } = await api.get('/api/user/sessions')
+    const { data } = await api.get('/user/sessions')
     sessions.value = data.sessions || []
   } catch (err) {
     console.error('Failed to fetch sessions:', err)
@@ -62,7 +62,7 @@ const fetchSessions = async () => {
 
 const logoutSession = async (id) => {
   try {
-    await api.post('/api/user/logout-session', { sessionId: id })
+    await api.post('/user/logout-session', { sessionId: id })
     sessions.value = sessions.value.filter(s => s._id !== id)
   } catch (err) {
     console.error('Failed to logout session:', err)
@@ -72,7 +72,7 @@ const logoutSession = async (id) => {
 
 const logoutAllSessions = async () => {
   try {
-    await api.post('/api/user/logout-all')
+    await api.post('/user/logout-all')
     sessions.value = []
     alert('Logged out of all sessions.')
   } catch (err) {

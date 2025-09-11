@@ -91,7 +91,7 @@ const handleChangePassword = async () => {
   }
   loadingPassword.value = true
   try {
-    await api.post('/api/user/change-password', passwordForm.value)
+    await api.post('/user/change-password', passwordForm.value)
     alert('Password updated successfully!')
     passwordForm.value = {
       currentPassword: '',
@@ -109,7 +109,7 @@ const handleChangePassword = async () => {
 const toggle2FA = async () => {
   loading2FA.value = true
   try {
-    const { data } = await api.post('/api/user/toggle-2fa')
+    const { data } = await api.post('/user/toggle-2fa')
     userStore.setUser(data.user)
     alert(`2FA has been ${data.user.twoFactorEnabled ? 'enabled' : 'disabled'}.`)
   } catch (err) {
@@ -122,7 +122,7 @@ const toggle2FA = async () => {
 
 const fetchSessions = async () => {
   try {
-    const { data } = await api.get('/api/user/sessions')
+    const { data } = await api.get('/user/sessions')
     sessions.value = data.sessions
   } catch (err) {
     console.error(err)
@@ -131,7 +131,7 @@ const fetchSessions = async () => {
 
 const logoutSession = async (sessionId) => {
   try {
-    await api.post(`/api/user/logout-session`, { sessionId })
+    await api.post(`/user/logout-session`, { sessionId })
     sessions.value = sessions.value.filter(s => s._id !== sessionId)
   } catch (err) {
     console.error(err)
@@ -141,7 +141,7 @@ const logoutSession = async (sessionId) => {
 
 const logoutAllSessions = async () => {
   try {
-    await api.post('/api/user/logout-all')
+    await api.post('/user/logout-all')
     sessions.value = []
     alert('All sessions have been logged out.')
   } catch (err) {

@@ -65,7 +65,7 @@ onMounted(() => {
 const handleSave = async () => {
   loading.value = true
   try {
-    const { data } = await api.put('/api/user/profile', form.value)
+    const { data } = await api.put('/user/profile', form.value)
     userStore.setUser(data.user)
     alert('Profile updated successfully!')
   } catch (err) {

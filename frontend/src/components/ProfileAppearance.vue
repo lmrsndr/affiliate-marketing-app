@@ -70,7 +70,7 @@ const saving = ref(false)
 
 const fetchPreferences = async () => {
   try {
-    const { data } = await api.get('/api/user/appearance')
+    const { data } = await api.get('/user/appearance')
     Object.assign(form.value, data.preferences || {})
   } catch (err) {
     console.error('Failed to load appearance preferences', err)
@@ -80,7 +80,7 @@ const fetchPreferences = async () => {
 const savePreferences = async () => {
   saving.value = true
   try {
-    await api.put('/api/user/appearance', form.value)
+    await api.put('/user/appearance', form.value)
     alert('Appearance preferences saved.')
     // Optionally trigger theme update globally here
   } catch (err) {

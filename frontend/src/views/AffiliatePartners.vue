@@ -75,7 +75,7 @@ export default {
     // ✅ Check Admin Authentication using secure backend endpoints
     const checkAuth = async () => {
       try {
-        const status = await API.get("/api/auth/status");
+        const status = await API.get("/auth/status");
         if (!status.data.isAuthenticated) {
           alert("⚠️ Unauthorized. Redirecting to login.");
           router.push("/admin-login");

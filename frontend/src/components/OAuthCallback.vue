@@ -24,7 +24,7 @@ export default {
 
     const user = ref(null);
     const defaultAvatar =
-      "https://affiliate-marketing-app-api.onrender.com/api/user/profile-picture/generic_avatar.png";
+      "https://affiliate-marketing-app-api.onrender.com/user/profile-picture/generic_avatar.png";
 
     // sanitize ?redirect= (internal paths only, not auth pages)
     function sanitizeRedirect(path) {

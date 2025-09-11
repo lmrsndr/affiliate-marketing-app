@@ -89,7 +89,7 @@ export default {
 
     const fetchUsers = async () => {
       try {
-        const res = await API.get("/api/user/all");
+        const res = await API.get("/user/all");
         users.value = res.data;
       } catch (err) {
         error.value = "Failed to load users.";
@@ -99,7 +99,7 @@ export default {
 
     const updateUser = async (user) => {
       try {
-        await API.patch(`/api/user/${user._id}`, {
+        await API.patch(`/user/${user._id}`, {
           role: user.role,
           title: user.title,
           badges: user.badges,
@@ -112,7 +112,7 @@ export default {
 
     const toggleSuspend = async (user) => {
       try {
-        await API.patch(`/api/user/${user._id}/suspend`, {
+        await API.patch(`/user/${user._id}/suspend`, {
           suspended: !user.suspended,
         });
         user.suspended = !user.suspended;
@@ -125,7 +125,7 @@ export default {
     const deleteUser = async (id) => {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
-        await API.delete(`/api/user/${id}`);
+        await API.delete(`/user/${id}`);
         users.value = users.value.filter((u) => u._id !== id);
       } catch (err) {
         error.value = "Failed to delete user.";

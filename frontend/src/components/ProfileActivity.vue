@@ -51,7 +51,7 @@ const formatEvent = (event) => {
 const fetchActivity = async () => {
   loading.value = true
   try {
-    const { data } = await api.get('/api/user/activity')
+    const { data } = await api.get('/user/activity')
     activities.value = data.activity || []
   } catch (err) {
     console.error('Failed to load activity log', err)

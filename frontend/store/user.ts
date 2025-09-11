@@ -29,7 +29,7 @@ export const useUserStore = defineStore('user', {
       try {
         // Call your status endpoint that reads HttpOnly cookies server-side.
         // It should return: { accessToken?, isAuthenticated, user: {id,email,role,twoFAVerified} }
-        const res = await fetch('/api/auth/status', { credentials: 'include' });
+        const res = await fetch('/auth/status', { credentials: 'include' });
         if (!res.ok) throw new Error('status failed');
         const data = await res.json();
         this.accessToken = data.accessToken || '';

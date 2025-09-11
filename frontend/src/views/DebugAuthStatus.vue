@@ -4,7 +4,7 @@
     <p><strong>Location:</strong> {{ href }}</p>
     <p><strong>Cookies:</strong> {{ cookies }}</p>
 
-    <button @click="probe" :disabled="loading">Probe /api/auth/status</button>
+    <button @click="probe" :disabled="loading">Probe /auth/status</button>
     <pre v-if="result" style="white-space:pre-wrap;background:#000;padding:.75rem;border-radius:8px;border:1px dashed #333;margin-top:.75rem">
 {{ result }}
     </pre>
@@ -21,9 +21,9 @@ const loading = ref(false);
 async function probe() {
   loading.value = true;
   try {
-    const res = await fetch('/api/auth/status', { credentials: 'include' });
+    const res = await fetch('/auth/status', { credentials: 'include' });
     const body = await res.json().catch(()=>null);
-    console.log('📊 [/debug-auth] /api/auth/status ->', { ok: res.ok, status: res.status, body });
+    console.log('📊 [/debug-auth] /auth/status ->', { ok: res.ok, status: res.status, body });
     result.value = JSON.stringify({ ok: res.ok, status: res.status, body }, null, 2);
   } catch (e) {
     console.error('❌ probe failed', e);

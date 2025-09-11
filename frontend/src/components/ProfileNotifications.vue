@@ -63,7 +63,7 @@ const notificationOptions = {
 
 const fetchPreferences = async () => {
   try {
-    const { data } = await api.get('/api/user/notifications')
+    const { data } = await api.get('/user/notifications')
     form.value = data.preferences || {}
   } catch (err) {
     console.error('Failed to load notification preferences', err)
@@ -73,7 +73,7 @@ const fetchPreferences = async () => {
 const saveSettings = async () => {
   saving.value = true
   try {
-    await api.put('/api/user/notifications', form.value)
+    await api.put('/user/notifications', form.value)
     alert('Preferences saved successfully.')
   } catch (err) {
     console.error('Failed to save preferences', err)
