@@ -23,14 +23,14 @@ const invoiceError = ref(null)
 
 onMounted(async () => {
   try {
-    const res = await api.get('/api/accounting/report')
+    const res = await api.get('/accounting/report')
     revenue.value = res.data.revenue
     expenses.value = res.data.expenses
 
     // Signed URLs for expenses
     for (const exp of expenses.value) {
       if (exp.fileUrl) {
-        const { data } = await api.get(`/api/accounting/signed-url`, {
+        const { data } = await api.get(`/accounting/signed-url`, {
           params: { key: exp.fileUrl }
         })
         exp.signedUrl = data.url
@@ -40,7 +40,7 @@ onMounted(async () => {
     // Signed URLs for revenue
     for (const txn of revenue.value) {
       if (txn.invoiceUrl) {
-        const { data } = await api.get(`/api/accounting/signed-url`, {
+        const { data } = await api.get(`/accounting/signed-url`, {
           params: { key: txn.invoiceUrl }
         })
         txn.signedUrl = data.url
@@ -73,7 +73,7 @@ const reuploadFile = async () => {
     formData.append('file', newFile.value)
 
     const { data } = await api.put(
-      `/api/accounting/expense/${selectedExpense.value._id}/reupload`,
+      `/accounting/expense/${selectedExpense.value._id}/reupload`,
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
@@ -81,7 +81,7 @@ const reuploadFile = async () => {
     selectedExpense.value.fileUrl = data.fileUrl
     selectedExpense.value.fileAvailable = true
 
-    const signed = await api.get(`/api/accounting/signed-url`, {
+    const signed = await api.get(`/accounting/signed-url`, {
       params: { key: data.fileUrl }
     })
     selectedExpense.value.signedUrl = signed.data.url
@@ -117,7 +117,7 @@ const reuploadInvoice = async () => {
     formData.append('file', newInvoiceFile.value)
 
     const { data } = await api.put(
-      `/api/accounting/transaction/${selectedInvoice.value._id}/reupload`,
+      `/accounting/transaction/${selectedInvoice.value._id}/reupload`,
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
@@ -125,7 +125,7 @@ const reuploadInvoice = async () => {
     selectedInvoice.value.invoiceUrl = data.fileUrl
     selectedInvoice.value.fileAvailable = true
 
-    const signed = await api.get(`/api/accounting/signed-url`, {
+    const signed = await api.get(`/accounting/signed-url`, {
       params: { key: data.fileUrl }
     })
     selectedInvoice.value.signedUrl = signed.data.url

@@ -8,7 +8,7 @@ const error = ref(null)
 
 onMounted(async () => {
   try {
-    const { data } = await api.get('/api/accounting/my-invoices')
+    const { data } = await api.get('/accounting/my-invoices')
     invoices.value = data
   } catch (err) {
     error.value = 'Failed to load invoices'
@@ -20,7 +20,7 @@ onMounted(async () => {
 
 const downloadInvoice = async (invoice) => {
   try {
-    const { data } = await api.get(`/api/accounting/invoice/${invoice._id}`)
+    const { data } = await api.get(`/accounting/invoice/${invoice._id}`)
     const link = document.createElement('a')
     link.href = data.url
     link.setAttribute('download', `invoice-${invoice._id}.pdf`)

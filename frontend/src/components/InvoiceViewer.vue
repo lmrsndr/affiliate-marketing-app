@@ -16,7 +16,7 @@ const downloadInvoice = async (txnId) => {
     loadingInvoice.value = txnId
 
     // Request a signed URL from backend
-    const res = await api.get(`/api/accounting/invoice/${txnId}`)
+    const res = await api.get(`/accounting/invoice/${txnId}`)
 
     if (!res.data?.url) {
       throw new Error("No invoice URL returned")

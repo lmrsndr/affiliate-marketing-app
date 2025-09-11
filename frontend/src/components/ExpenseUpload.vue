@@ -24,7 +24,7 @@ const uploadExpense = async () => {
     Object.entries(form.value).forEach(([key, val]) => formData.append(key, val))
     formData.append('file', file.value)
 
-    await api.post('/api/accounting/expense', formData, {
+    await api.post('/accounting/expense', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 

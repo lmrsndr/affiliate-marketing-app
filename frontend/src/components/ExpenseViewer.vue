@@ -102,7 +102,7 @@ const editForm = ref({})
 
 onMounted(async () => {
   try {
-    const { data } = await api.get('/api/accounting/report')
+    const { data } = await api.get('/accounting/report')
     expenses.value = data.expenses || []
   } catch (err) {
     console.error('Failed to load expenses:', err)
@@ -151,7 +151,7 @@ const editExpense = (exp) => {
 const saveEdit = async () => {
   try {
     const { _id, ...update } = editForm.value
-    const { data } = await api.put(`/api/accounting/expense/${_id}`, update)
+    const { data } = await api.put(`/accounting/expense/${_id}`, update)
     const idx = expenses.value.findIndex(e => e._id === _id)
     if (idx !== -1) expenses.value[idx] = data.expense
     editingExpense.value = null
@@ -163,7 +163,7 @@ const saveEdit = async () => {
 const deleteExpense = async (id) => {
   if (!confirm('Are you sure you want to delete this expense?')) return
   try {
-    await api.delete(`/api/accounting/expense/${id}`)
+    await api.delete(`/accounting/expense/${id}`)
     expenses.value = expenses.value.filter(e => e._id !== id)
   } catch (err) {
     console.error('Failed to delete expense:', err)
@@ -172,7 +172,7 @@ const deleteExpense = async (id) => {
 
 const exportCSV = async () => {
   try {
-    const res = await api.get('/api/accounting/export', { responseType: 'blob' })
+    const res = await api.get('/accounting/export', { responseType: 'blob' })
     saveAs(res.data, 'bundlebee-expenses.csv')
   } catch (err) {
     console.error('Failed to export CSV:', err)

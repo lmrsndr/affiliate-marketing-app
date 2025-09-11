@@ -21,7 +21,7 @@ const loading = ref(true)
 
 onMounted(async () => {
   try {
-    const { data } = await API.get('/api/partner/analytics')
+    const { data } = await API.get('/partner/analytics')
     analytics.value = data
   } catch (err) {
     console.error('❌ Error fetching partner analytics:', err)

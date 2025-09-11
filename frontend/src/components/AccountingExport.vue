@@ -10,7 +10,7 @@ const downloadCSV = async () => {
   downloading.value = true
 
   try {
-    const res = await api.get('/api/accounting/export', {
+    const res = await api.get('/accounting/export', {
       responseType: 'blob' // important for downloading files
     })
 
