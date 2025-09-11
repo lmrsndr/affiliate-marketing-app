@@ -1,57 +1,43 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const UserSchema = new mongoose.Schema({
-  // Local auth
-  passwordHash: { type: String, select: false },
-  localEnabled: { type: Boolean, default: true },
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true, trim: true },
-  password: { type: String, required: false, select: false },
-  googleId: { type: String, unique: true, sparse: true },
-  role: { type: String, enum: ["user", "admin", "partner"], default: "user" },
-  enabledViews: { type: Array, default: ["questionnaire"] },
+const UserSchema = new mongoose.Schema(
+  {
+    email:        { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    name:         { type: String, required: true },
+    role:         { type: String, enum: ["user", "admin", "partner"], default: "user" },
 
-  interactions: [
-    {
-      action: String,
-      details: mongoose.Schema.Types.Mixed,
-      timestamp: { type: Date, default: Date.now },
+    // Local auth
+    password:     { type: String, select: false }, // bcrypt hash stored here
+    localEnabled: { type: Boolean, default: true },
+
+    // Google
+    googleId:       { type: String, unique: true, sparse: true },
+    profilePicture: { type: String },
+
+    // 2FA
+    twoFA: {
+      enabled:     { type: Boolean, default: false },
+      secret:      { type: String, select: false },
+      backupCodes: [{ type: String, select: false }],
     },
-  ],
-
-  // ✅ App-based 2FA
-  twoFA: {
-    enabled: { type: Boolean, default: false },
-    secret: { type: String }, // Base32 TOTP secret
-    backupCodes: [{ type: String }],
+    email2FA: {
+      enabled:  { type: Boolean, default: false },
+      verified: { type: Boolean, default: false },
+      code:     { type: String, select: false },
+      expiresAt:{ type: Date,   select: false },
+    },
   },
+  { timestamps: true }
+);
 
-  // ✅ Email-based 2FA
-  email2FA: {
-    code: { type: String },
-    expiresAt: { type: Date },
-    verified: { type: Boolean, default: false },
-  },
-
-  createdAt: { type: Date, default: Date.now },
-});
-
-// ✅ Indexes
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ googleId: 1 }, { unique: true, sparse: true });
-
-// ✅ Hash password before saving
+// Hash if password changed (safe; won't rehash unless modified)
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password") || !this.password) return next();
-  this.password = await bcrypt.hash(this.password, 10);
+  if (!this.password.startsWith("$2")) { // simple guard to avoid double-hash if caller already hashed
+    this.password = await bcrypt.hash(this.password, 12);
+  }
   next();
 });
-
-// ✅ Compare password method
-UserSchema.methods.comparePassword = async function (password) {
-  if (!this.password) return false;
-  return bcrypt.compare(password, this.password);
-};
 
 module.exports = mongoose.models.User || mongoose.model("User", UserSchema);
