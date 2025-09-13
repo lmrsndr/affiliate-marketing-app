@@ -44,7 +44,7 @@ function clearAccessToken() {
 
 /* ──────────────────────────────────────────────────────────────
    Interceptors
-   - We prefer cookie-based auth. If /auth/refresh sets cookies
+   - Prefer cookie-based auth. If /auth/refresh sets cookies
      but does NOT return accessToken, we still retry the request.
 ────────────────────────────────────────────────────────────── */
 API.interceptors.request.use(
@@ -72,24 +72,35 @@ API.interceptors.response.use(
     // 403 → MFA/TOTP routing (avoid loops)
     if (status === 403) {
       const onVerify = path === "/verify-2fa" || path === "/setup-2fa";
-      if (reason === "MFA_REQUIRED" || reason === "EMAIL_2FA_REQUIRED" || reason === "TOTP_REQUIRED") {
+      if (
+        reason === "MFA_REQUIRED" ||
+        reason === "EMAIL_2FA_REQUIRED" ||
+        reason === "TOTP_REQUIRED"
+      ) {
         if (!onVerify) window.location.assign("/verify-2fa");
         return Promise.reject(error);
       }
       if (reason === "TOTP_REQUIRED_SETUP") {
-        if (path !== "/setup-2fa") window.location.assign("/setup-2fa");
+        if (!onVerify) window.location.assign("/setup-2fa");
         return Promise.reject(error);
       }
     }
 
-    // 401 → try cookie refresh once
-    if (status === 401 && !original._retry) {
+    // Refresh once on 401, or on 403 that isn't an MFA/TOTP gating reason
+    const shouldTryRefresh =
+      status === 401 ||
+      (status === 403 &&
+        reason !== "MFA_REQUIRED" &&
+        reason !== "EMAIL_2FA_REQUIRED" &&
+        reason !== "TOTP_REQUIRED" &&
+        reason !== "TOTP_REQUIRED_SETUP");
+
+    if (shouldTryRefresh && !original._retry) {
       if (isRefreshing) return Promise.reject(error);
       original._retry = true;
       isRefreshing = true;
       try {
-        const { data } = await axios.post(safeBaseURL + "/auth/refresh", {}, { withCredentials: true });
-        // If server returns a token, use it; if not, cookies were still refreshed—retry anyway
+        const { data } = await API.post("/auth/refresh"); // sets cookie; may or may not return token
         if (data && data.accessToken) {
           setAccessToken(data.accessToken, { persist: "both" });
           original.headers = original.headers || {};
@@ -178,7 +189,7 @@ export async function loginUser(credentials) {
 }
 
 export async function logoutUser() {
-  await API.post("/auth/logout", {}); // POST avoids caches/proxies
+  await API.get("/auth/logout"); // server route is GET; clears cookies
   setAccessToken(null);
   window.location.assign("/login");
 }
