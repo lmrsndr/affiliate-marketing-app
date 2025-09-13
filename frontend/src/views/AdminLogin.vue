@@ -14,103 +14,146 @@
       </div>
 
       <button type="submit" :disabled="loading">
-        {{ loading ? "Logging in..." : "Login" }}
+        <span v-if="loading">Logging in…</span>
+        <span v-else>Login</span>
       </button>
+
+      <p v-if="error" class="error">{{ error }}</p>
     </form>
 
-    <p v-if="error" class="err">{{ error }}</p>
+    <div class="or">or</div>
 
-    <p style="margin-top: .75rem">
-      <router-link to="/register">Create New Account</router-link>
-      ·
-      <router-link to="/forgot-password">Forgot Password?</router-link>
-    </p>
+    <!-- FULL-PAGE NAV to backend OAuth start -->
+    <button class="google" @click="loginWithGoogle" :disabled="loading">
+      Login with Google
+    </button>
 
-    <div style="margin: 1rem 0; text-align:center">or</div>
-
-    <a class="google-btn" href="/auth/google">Login with Google</a>
-
-    <details style="margin-top:1rem">
+    <details class="debug">
       <summary>Debug</summary>
-      <pre class="debug">
-email: {{ email }}
-loading: {{ loading }}
-error: {{ error }}
-      </pre>
+      <div>
+        <div><b>API_BASE:</b> {{ API_BASE }}</div>
+        <div><b>OAUTH_BASE:</b> {{ OAUTH_BASE }}</div>
+        <pre>{{ lastResponse }}</pre>
+      </div>
     </details>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { apiFetch } from '@/lib/api';
+import { ref } from "vue";
+import API from "@/api"; // your axios instance with baseURL ending in /api and withCredentials: true
 
-const router = useRouter();
-const email = ref('');
-const password = ref('');
+const API_BASE = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk/api").replace(/\/+$/, "");
+const OAUTH_BASE = API_BASE.replace(/\/api$/, "");
+
+const email = ref("");
+const password = ref("");
 const loading = ref(false);
-const error = ref('');
+const error = ref("");
+const lastResponse = ref("");
 
 async function submit() {
-  error.value = '';
+  error.value = "";
+  lastResponse.value = "";
   loading.value = true;
+
   try {
-    const res = await apiFetch('/auth/local/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.value, password: password.value })
+    // NOTE: baseURL already ends with /api → path MUST NOT start with /api
+    const { data } = await API.post("/auth/local/login", {
+      email: email.value,
+      password: password.value,
     });
 
-    const data = await res.json().catch(() => ({}));
+    lastResponse.value = JSON.stringify(data, null, 2);
 
-    if (!res.ok) {
-      error.value = data?.message || data?.error || 'Invalid credentials';
+    // Pre-2FA flow
+    if (data?.need2fa) {
+      window.location.assign("/verify-2fa");
       return;
     }
 
-    // On success, the server set cookies (SameSite=None; Secure; Domain=.bundlebee.co.uk)
-    // Decide where to go next (2FA or dashboard).
-    if (data?.next === 'verify-2fa') {
-      router.push({ path: '/verify-2fa' });
-    } else {
-      router.push({ path: '/dashboard' });
-    }
+    // Logged in (cookies set) → pick a sensible landing page
+    // If you have /auth/next available, you can use it here instead.
+    window.location.assign("/admin-dashboard");
   } catch (e) {
-    error.value = 'Network or server error';
+    const msg =
+      e?.response?.data?.message ||
+      e?.response?.data?.error ||
+      e?.message ||
+      "Login failed";
+    error.value = msg === "Invalid credentials" ? "Invalid credentials" : msg;
   } finally {
     loading.value = false;
   }
+}
+
+function loginWithGoogle() {
+  // IMPORTANT: must be a full page navigation to the API domain
+  window.location.assign(`${OAUTH_BASE}/auth/google`);
 }
 </script>
 
 <style scoped>
 .login {
-  max-width: 520px;
+  max-width: 420px;
   margin: 2rem auto;
-  padding: 1.5rem;
-  border: 1px solid #333;
-  border-radius: 12px;
-  background: #0b0b0b;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  background: #0d0f10;
+  color: #e8ecef;
+  box-shadow: 0 8px 28px rgba(0,0,0,.25);
 }
-.field { margin-bottom: 0.75rem; display: grid; gap: .25rem; }
-.field input { width: 100%; padding: .5rem; }
-button { padding: .5rem .75rem; }
-.err { color: #f66; margin-top: .75rem; }
-.google-btn {
-  display: inline-block;
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.field { margin-bottom: .9rem; }
+label { display: block; font-size: .9rem; margin-bottom: .35rem; opacity: .9; }
+input {
   width: 100%;
-  text-align: center;
-  padding: .6rem .9rem;
+  padding: .6rem .7rem;
   border-radius: 8px;
-  border: 1px solid #333;
-  background: #eee;
-  color: #111;
-  text-decoration: none;
+  border: 1px solid #2a2f33;
+  background: #101316;
+  color: #e8ecef;
+  outline: none;
 }
-.debug {
+input:focus { border-color: #3aa265; }
+button {
+  width: 100%;
+  padding: .7rem .9rem;
+  border-radius: 8px;
+  border: 1px solid #2a2f33;
+  background: #1a2125;
+  color: #e8ecef;
+  cursor: pointer;
+}
+button[disabled] { opacity: .6; cursor: not-allowed; }
+.error { color: #ff6b6b; margin-top: .6rem; }
+
+.or {
+  text-align: center;
+  opacity: .7;
+  margin: 1rem 0 .7rem;
+}
+
+button.google {
+  background: #ffffff;
+  color: #111;
+  border: 1px solid #d0d5d9;
+}
+
+details.debug {
+  margin-top: 1rem;
+  border: 1px dashed #3a3f44;
+  padding: .6rem .7rem;
+  border-radius: 8px;
+}
+details.debug pre {
   white-space: pre-wrap;
-  background: #111; color: #ddd;
-  border: 1px dashed #444; padding: .5rem; border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: .85rem;
+  margin-top: .4rem;
 }
 </style>
