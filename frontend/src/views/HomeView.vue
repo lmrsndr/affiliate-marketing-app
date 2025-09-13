@@ -4,7 +4,7 @@
     <section class="hero updated-hero">
       <div class="hero-content">
         <div class="hero-badge bb-badge">
-          <span>🛡</span> Trusted UK Subscriptions
+          <span aria-hidden="true">🛡</span> Trusted UK Subscriptions
         </div>
 
         <h1 class="hero-title">Trust What You Subscribe To</h1>
@@ -17,19 +17,20 @@
           <router-link to="/login" class="bb-btn bb-btn--primary" aria-label="Join BundleBee">
             Join the Hive
           </router-link>
-          <router-link to="/quiz" class="bb-btn bb-btn--ghost" aria-label="Find your matches">
+          <!-- align with your app’s route naming -->
+          <router-link to="/questionnaire" class="bb-btn bb-btn--ghost" aria-label="Find your matches">
             Take the Match Quiz
           </router-link>
         </div>
 
         <ul class="trust-points" aria-label="Trust points">
-          <li><span>✔</span> Verified Partners</li>
-          <li><span>⭐</span> Genuine Reviews</li>
-          <li><span>🔒</span> Secure, Ad-Free Discovery</li>
+          <li><span aria-hidden="true">✔</span> Verified Partners</li>
+          <li><span aria-hidden="true">⭐</span> Genuine Reviews</li>
+          <li><span aria-hidden="true">🔒</span> Secure, Ad-Free Discovery</li>
         </ul>
       </div>
 
-      <div class="hero-mark">
+      <div class="hero-mark" aria-hidden="true">
         <img
           src="/icon-512x512.png"
           alt="BundleBee logo"
@@ -64,22 +65,22 @@
       <h2>How It Works</h2>
       <div class="tiles">
         <article class="tile bb-card">
-          <span class="tile-emoji">🔍</span>
+          <span class="tile-emoji" aria-hidden="true">🔍</span>
           <h3>Browse</h3>
           <p>Explore curated UK brands by lifestyle, values, or category.</p>
         </article>
         <article class="tile bb-card">
-          <span class="tile-emoji">🎯</span>
+          <span class="tile-emoji" aria-hidden="true">🎯</span>
           <h3>Get Matched</h3>
           <p>Smart suggestions based on your preferences — no ads, ever.</p>
         </article>
         <article class="tile bb-card">
-          <span class="tile-emoji">💬</span>
+          <span class="tile-emoji" aria-hidden="true">💬</span>
           <h3>Read Reviews</h3>
           <p>Genuine, helpful reviews from real users like you.</p>
         </article>
         <article class="tile bb-card">
-          <span class="tile-emoji">🛒</span>
+          <span class="tile-emoji" aria-hidden="true">🛒</span>
           <h3>Subscribe Securely</h3>
           <p>Join trusted partners with verified badges & safe checkout.</p>
         </article>
@@ -88,71 +89,90 @@
 
     <!-- TRENDING PARTNERS -->
     <section class="trending-carousel bb-card">
-      <h2>Trending UK Partners</h2>
+      <div class="flex items-center justify-between gap-2">
+        <h2>Trending UK Partners</h2>
+        <router-link class="bb-btn bb-btn--ghost" to="/questionnaire">Find your match</router-link>
+      </div>
 
-      <div
-        v-for="(group, index) in categorizedPartners"
-        :key="group.category || index"
-        class="carousel-row"
-      >
-        <h3>{{ group.category }}</h3>
+      <!-- error / empty states -->
+      <p v-if="boxesError" class="bb-card p-3 text-red-600">{{ boxesError }}</p>
+      <div v-else-if="loading" class="bb-card p-4" aria-busy="true">Loading partners…</div>
 
-        <div class="carousel-tiles" role="list">
-          <div
-            class="carousel-tile"
-            v-for="(partner, pIndex) in group.partners"
-            :key="partner._id || `${group.category}-${pIndex}`"
-            role="listitem"
-          >
-            <div class="new-ribbon" v-if="!partner.ratingCount || partner.ratingCount === 0">NEW</div>
+      <template v-else>
+        <div
+          v-for="(group, index) in categorizedPartners"
+          :key="group.category || index"
+          class="carousel-row"
+        >
+          <h3>{{ group.category }}</h3>
 
-            <img
-              class="partner-logo"
-              :src="partner.imageUrl"
-              :alt="`${partner.name} logo`"
-              @error="onImgError($event)"
-              loading="lazy"
-              decoding="async"
-            />
+          <div class="carousel-tiles" role="list">
+            <div
+              class="carousel-tile"
+              v-for="(partner, pIndex) in group.partners"
+              :key="partner.id || partner._id || `${group.category}-${pIndex}`"
+              role="listitem"
+            >
+              <div class="new-ribbon" v-if="!partner.ratingsCount || partner.ratingsCount === 0">NEW</div>
 
-            <h4 class="partner-name" :title="partner.name">{{ partner.name }}</h4>
+              <img
+                class="partner-logo"
+                :src="partner.imageUrl || placeholderImg"
+                :alt="`${partner.name} logo`"
+                @error="onImgError($event)"
+                loading="lazy"
+                decoding="async"
+              />
 
-            <div class="badge" v-if="partner.isVerified">🛡 Verified</div>
+              <h4 class="partner-name" :title="partner.name">{{ partner.name }}</h4>
 
-            <div class="rating" aria-label="Partner rating">
-              <template v-if="partner.rating !== undefined && partner.ratingCount > 0">
-                <div class="bb-stars" :data-rating="Math.round(partner.rating)">
-                  <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(partner.rating) }">★</span>
-                </div>
-                <span class="rating-value">
-                  {{ partner.rating.toFixed(1) }}/5
-                  <span class="user-count">
-                    ({{ formatCount(partner.ratingCount) }} user{{ partner.ratingCount === 1 ? '' : 's' }})
+              <div class="badge" v-if="partner.isVerified">🛡 Verified</div>
+
+              <div class="rating" aria-label="Partner rating">
+                <template v-if="partner.rating !== undefined && partner.ratingsCount > 0">
+                  <div class="bb-stars" :data-rating="Math.round(partner.rating)">
+                    <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(partner.rating) }">★</span>
+                  </div>
+                  <span class="rating-value">
+                    {{ partner.rating.toFixed(1) }}/5
+                    <span class="user-count">
+                      ({{ formatCount(partner.ratingsCount) }} user{{ partner.ratingsCount === 1 ? '' : 's' }})
+                    </span>
                   </span>
-                </span>
-              </template>
-              <template v-else>
-                <span class="no-rating">No ratings yet</span>
-              </template>
-            </div>
+                </template>
+                <template v-else>
+                  <span class="no-rating">No ratings yet</span>
+                </template>
+              </div>
 
-            <div class="tile-actions">
-              <a :href="partner.affiliateLink" class="visit-btn bb-btn bb-btn--primary" target="_blank" rel="noopener">
-                Visit
-              </a>
-              <router-link :to="`/partner/${partner._id}`" class="details-btn bb-btn bb-btn--ghost">
-                Details
-              </router-link>
+              <div class="tile-actions">
+                <!-- log + open in new tab (revenue-safe) -->
+                <a
+                  href="#"
+                  class="visit-btn bb-btn bb-btn--primary"
+                  @click.prevent="openAffiliate(partner)"
+                  rel="sponsored noopener"
+                >
+                  Visit
+                </a>
+                <router-link :to="`/partner/${partner.id || partner._id}`" class="details-btn bb-btn bb-btn--ghost">
+                  Details
+                </router-link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        <div v-if="!categorizedPartners.length" class="bb-card p-3 text-muted">
+          No partners to show right now. Check back soon!
+        </div>
+      </template>
     </section>
 
     <!-- TESTIMONIALS -->
     <section class="testimonial-carousel bb-card">
       <h2>What Our Users Are Saying</h2>
-      <div class="testimonial">
+      <div class="testimonial" aria-live="polite">
         <transition name="fade" mode="out-in">
           <blockquote :key="currentIndex">
             “{{ testimonials[currentIndex].quote }}”
@@ -168,7 +188,16 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import API from '../api.js';
 
+/* ────────────────────────────────────────────────────────────
+   State
+──────────────────────────────────────────────────────────── */
+const loading = ref(true);
+const boxesError = ref('');
 const boxes = ref([]);
+
+const placeholders = ['/android-chrome-192x192.png', '/icon-192x192.png'];
+const placeholderImg = placeholders[0];
+
 const testimonials = ref([
   { quote: 'Finally a marketplace I can trust.', author: 'Alice, Leeds' },
   { quote: 'Every partner I tried from BundleBee delivered real value.', author: 'Tom, Bristol' },
@@ -176,41 +205,125 @@ const testimonials = ref([
 ]);
 const currentIndex = ref(0);
 let testimonialTimer = null;
+let controller = null;
 
-const categorizedPartners = computed(() => {
-  const categories = {};
-  for (const box of boxes.value) {
-    const cat = box.category || 'Other';
-    if (!categories[cat]) categories[cat] = [];
-    categories[cat].push(box);
+/* ────────────────────────────────────────────────────────────
+   Normalisers (accept varied backend shapes)
+──────────────────────────────────────────────────────────── */
+function normBox(b) {
+  const priceNum = Number(String(b?.price ?? '').replace(/[^\d.]/g, '')) || 0;
+  const rating = Number(b?.rating ?? b?.ratings ?? 0) || 0;
+  const ratingsCount = Number(b?.ratingsCount ?? 0) || 0;
+
+  const category =
+    typeof b?.category === 'object'
+      ? (b?.category?.name || '')
+      : (b?.category || '');
+
+  return {
+    id: b?._id || b?.id || `${b?.name}-${priceNum}`,
+    name: b?.name || 'Untitled',
+    category: category || 'Other',
+    description: b?.description || '',
+    price: priceNum,
+    rating,
+    ratingsCount,
+    imageUrl: b?.imageUrl || b?.logoUrl || '',
+    website: b?.website || b?.url || '#',
+    affiliateLink: b?.affiliateLink || b?.affiliate_url || '',
+    isVerified: !!b?.isVerified,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+   Data
+──────────────────────────────────────────────────────────── */
+async function fetchBoxes() {
+  loading.value = true;
+  boxesError.value = '';
+
+  // Abort previous request if user navigates fast
+  if (controller) controller.abort();
+  controller = new AbortController();
+
+  try {
+    let raw = [];
+    try {
+      const res = await API.get('/boxes/public', { signal: controller.signal });
+      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
+    } catch {
+      const res = await API.get('/boxes', { signal: controller.signal });
+      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
+    }
+    boxes.value = raw.map(normBox);
+
+  } catch (err) {
+    if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+      console.error('❌ Failed to fetch boxes:', err);
+      boxesError.value = 'We couldn’t load partners just now. Please try again.';
+    }
+  } finally {
+    loading.value = false;
   }
-  return Object.entries(categories).map(([category, partners]) => ({ category, partners }));
+}
+
+/* ────────────────────────────────────────────────────────────
+   Derived
+──────────────────────────────────────────────────────────── */
+const categorizedPartners = computed(() => {
+  const groups = new Map();
+  for (const box of boxes.value) {
+    const key = box.category || 'Other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(box);
+  }
+  return Array.from(groups.entries()).map(([category, partners]) => ({ category, partners }));
 });
 
-const fetchBoxes = async () => {
-  try {
-    const res = await API.get('/boxes/public');
-    const newData = JSON.stringify(res.data);
-    const currentData = JSON.stringify(boxes.value);
-    if (newData !== currentData) {
-      boxes.value = res.data;
-    }
-  } catch (err) {
-    console.error('❌ Failed to fetch boxes:', err);
+/* ────────────────────────────────────────────────────────────
+   UX helpers
+──────────────────────────────────────────────────────────── */
+function onImgError(e) {
+  if (!placeholders.includes(e.target.src)) {
+    e.target.src = placeholderImg;
   }
-};
-
-const onImgError = (e) => {
-  // Fallback to a brand-safe placeholder
-  if (!e.target.src.includes('/android-chrome-192x192.png')) {
-    e.target.src = '/android-chrome-192x192.png';
-  }
-};
-
-const formatCount = (count) => {
+}
+function formatCount(count) {
   return count < 1000 ? count : `${(count / 1000).toFixed(1).replace('.0', '')}k+`;
-};
+}
 
+/* ────────────────────────────────────────────────────────────
+   Revenue-safe click: log then open
+──────────────────────────────────────────────────────────── */
+async function openAffiliate(partner) {
+  try {
+    if (!partner?.affiliateLink && !partner?.website) return;
+
+    // Best-effort logging, no auth required on backend
+    try {
+      await API.post('/interactions', {
+        action: 'clicked_affiliate_link',
+        details: {
+          boxId: partner.id,
+          name: partner.name,
+          url: partner.affiliateLink || partner.website
+        }
+      });
+    } catch {
+      // non-blocking
+    }
+
+    const url = partner.affiliateLink || partner.website;
+    window.open(url, '_blank', 'noopener');
+
+  } catch (err) {
+    console.error('Affiliate open failed:', err);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Lifecycle
+──────────────────────────────────────────────────────────── */
 onMounted(() => {
   fetchBoxes();
   testimonialTimer = setInterval(() => {
@@ -220,6 +333,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (testimonialTimer) clearInterval(testimonialTimer);
+  if (controller) controller.abort();
 });
 </script>
 
@@ -241,12 +355,8 @@ onUnmounted(() => {
   box-shadow: var(--bb-shadow-md);
 }
 
-.hero-content {
-  text-align: left;
-}
-.hero-badge {
-  margin-bottom: .75rem;
-}
+.hero-content { text-align: left; }
+.hero-badge { margin-bottom: .75rem; }
 .hero-title {
   font-family: var(--bb-font-heading);
   font-size: clamp(1.75rem, 3.4vw, 3rem);
@@ -266,10 +376,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
-.hero-mark {
-  display: grid;
-  place-items: center;
-}
+.hero-mark { display: grid; place-items: center; }
 .hero-mark img {
   width: min(280px, 60vw);
   height: auto;
