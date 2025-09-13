@@ -1,217 +1,272 @@
+<script setup>
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import API from "@/api";                       // axios instance (withCredentials)
+import { guardedGet } from "@/lib/guarded-api"; // same helper used elsewhere
+
+/* ────────────────────────────────────────────────────────────
+   State
+──────────────────────────────────────────────────────────── */
+const router = useRouter();
+
+const loading = ref(true);
+const user = ref(null); // { name, email, profilePicture, role, ... }
+const enabledViews = ref([]);
+
+const catLoading = ref(true);
+const catsError = ref("");
+const categories = ref([]); // normalized: [{ name, avgRating, totalClicks }]
+
+const boxesLoading = ref(true);
+const boxesError = ref("");
+const boxes = ref([]); // normalized: [{ id, name, category, description, price, rating, ratingsCount, imageUrl, website, affiliateLink }]
+
+const defaultAvatar = "https://via.placeholder.com/150?text=User";
+const defaultImage  = "https://via.placeholder.com/320x240?text=BundleBee";
+
+/* ────────────────────────────────────────────────────────────
+   Helpers
+──────────────────────────────────────────────────────────── */
+async function logInteraction(action, details = {}) {
+  try {
+    await API.post("/interactions", { action, details });
+  } catch {
+    // non-blocking
+  }
+}
+
+function normCategory(item) {
+  // Accept shapes:
+  // 1) { _id: "Beauty", avgRating, totalClicks }
+  // 2) { name: "Beauty", ... }
+  // 3) plain string
+  const name = item?.name ?? item?._id ?? (typeof item === "string" ? item : "");
+  return {
+    name: String(name || ""),
+    avgRating: Number(item?.avgRating ?? 0) || 0,
+    totalClicks: Number(item?.totalClicks ?? 0) || 0,
+  };
+}
+
+function normBox(b) {
+  const priceNum = Number(String(b?.price ?? "").replace(/[^\d.]/g, "")) || 0;
+  const rating   = Number(b?.rating ?? b?.ratings ?? 0) || 0;
+  const ratingsCount = Number(b?.ratingsCount ?? 0) || 0;
+  return {
+    id: b?._id || b?.id || `${b?.name}-${priceNum}`,
+    name: b?.name || "Untitled",
+    category: b?.category?.name || b?.category || "",
+    description: b?.description || "",
+    price: priceNum,
+    rating,
+    ratingsCount,
+    imageUrl: b?.imageUrl || b?.logoUrl || "",
+    website: b?.website || b?.url || "#",
+    affiliateLink: b?.affiliateLink || b?.affiliate_url || "",
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+   Data loading
+──────────────────────────────────────────────────────────── */
+async function loadAuth() {
+  // guardedGet handles 401→/login and 403(MFA)→/verify-2fa
+  const { data } = await guardedGet("/auth/status");
+  // expected shape: { ok, user, mfaVerified, ... }
+  user.value = data?.user || null;
+
+  // Enabled views (optional)
+  try {
+    const res = await API.get("/auth/enabled-views");
+    // accept { enabledViews: [...] } or an array
+    enabledViews.value = Array.isArray(res?.data)
+      ? res.data
+      : (res?.data?.enabledViews || []);
+  } catch {
+    enabledViews.value = [];
+  }
+}
+
+async function loadCategories() {
+  catLoading.value = true;
+  catsError.value = "";
+  try {
+    const res = await API.get("/top-categories");
+    const raw = Array.isArray(res?.data)
+      ? res.data
+      : (res?.data?.categories || res?.data?.items || []);
+    categories.value = raw.map(normCategory).filter(c => c.name);
+  } catch (e) {
+    catsError.value = "Failed to load categories.";
+    categories.value = [];
+  } finally {
+    catLoading.value = false;
+  }
+}
+
+async function loadBoxes() {
+  boxesLoading.value = true;
+  boxesError.value = "";
+  try {
+    let raw = [];
+    try {
+      const res = await API.get("/boxes/public");
+      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
+    } catch {
+      const res = await API.get("/boxes");
+      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
+    }
+    boxes.value = raw.map(normBox).slice(0, 12); // show a curated slice
+  } catch (e) {
+    boxesError.value = "Failed to load subscription boxes.";
+    boxes.value = [];
+  } finally {
+    boxesLoading.value = false;
+  }
+}
+
+onMounted(async () => {
+  try {
+    await loadAuth();
+  } catch {
+    // redirected by guardedGet
+    return;
+  } finally {
+    loading.value = false;
+  }
+
+  loadCategories();
+  loadBoxes();
+  logInteraction("viewed_page", { page: "User Dashboard" });
+});
+
+/* ────────────────────────────────────────────────────────────
+   Computed
+──────────────────────────────────────────────────────────── */
+const isLoggedIn = computed(() => !!user.value);
+const displayName = computed(() => user.value?.name || "");
+const displayEmail = computed(() => user.value?.email || "");
+
+/* ────────────────────────────────────────────────────────────
+   Actions
+──────────────────────────────────────────────────────────── */
+async function logout() {
+  try {
+    await API.post("/auth/logout", {}); // POST to avoid caches
+  } catch {}
+  router.replace("/login");
+}
+</script>
+
 <template>
-  <div class="dashboard">
-    <h1 v-if="user.name">Welcome, {{ user.name }}</h1>
-    <h1 v-else>Welcome to BundleBee</h1>
+  <div class="max-w-6xl mx-auto px-4 py-8 dashboard">
+    <!-- Header -->
+    <header class="mb-6 text-center">
+      <h1 class="text-3xl font-bold" style="font-family: var(--bb-font-heading);">
+        <template v-if="displayName">Welcome, {{ displayName }}</template>
+        <template v-else>Welcome to BundleBee</template>
+      </h1>
+      <p v-if="displayEmail" class="text-muted">{{ displayEmail }}</p>
+    </header>
 
-    <img
-      v-if="user.profilePicture"
-      :src="user.profilePicture"
-      alt="Profile Picture"
-      class="profile-pic"
-    />
+    <!-- Profile strip -->
+    <section v-if="isLoggedIn" class="bb-card p-4 mb-6 flex items-center gap-4">
+      <img
+        :src="user?.profilePicture || defaultAvatar"
+        alt="Profile picture"
+        style="width:72px;height:72px;border-radius:50%;object-fit:cover"
+      />
+      <div class="flex-1">
+        <div class="font-semibold">{{ displayName || 'User' }}</div>
+        <div class="text-sm text-muted">{{ displayEmail || '—' }}</div>
+      </div>
+      <div class="flex gap-2">
+        <router-link class="bb-btn bb-btn--ghost" to="/profile">Profile</router-link>
+        <button class="bb-btn bb-btn--primary" @click="logout">Logout</button>
+      </div>
+    </section>
 
-    <p v-if="user.email">Email: {{ user.email }}</p>
-    <p v-else>Discover amazing subscription boxes below!</p>
+    <!-- Quick Actions -->
+    <section class="bb-card p-4 mb-6">
+      <div class="flex flex-wrap gap-3 justify-center">
+        <router-link class="bb-btn bb-btn--primary" to="/questionnaire">Find Your Box</router-link>
+        <router-link class="bb-btn bb-btn--ghost" to="/results">View Matches</router-link>
+        <router-link v-if="enabledViews.includes('manage-affiliates')" class="bb-btn bb-btn--ghost" to="/manage-affiliates">
+          Affiliate Partners
+        </router-link>
+      </div>
+    </section>
 
-    <div v-if="!user.name" class="partners-section">
-      <h2>Explore Our Subscription Boxes</h2>
-      <div v-if="isLoading" class="loading">Loading subscription boxes...</div>
-      <div v-else class="partners-grid">
-        <div v-for="box in subscriptionBoxes" :key="box._id" class="partner-card">
-          <a :href="box.affiliateLink" target="_blank" rel="noopener noreferrer">
-            <img v-if="box.imageUrl" :src="box.imageUrl" :alt="box.name" class="partner-logo" />
-            <h3>{{ box.name }}</h3>
-            <p class="category">Category: {{ box.category }}</p>
-            <p>{{ box.description }}</p>
-            <p class="price">Price: £{{ box.price }}</p>
-            <p v-if="box.ratings !== null">⭐ {{ box.ratings.toFixed(1) }} ({{ box.ratingsCount }} reviews)</p>
-            <p>🔥 {{ box.clicks }} clicks</p>
+    <!-- Popular Boxes for guests (and logged-in too) -->
+    <section class="partners-section">
+      <h2 class="text-2xl font-bold mb-3" style="font-family: var(--bb-font-heading);">Explore Subscription Boxes</h2>
+
+      <div v-if="boxesLoading" class="bb-card p-4" aria-busy="true">Loading subscription boxes…</div>
+      <p v-else-if="boxesError" class="bb-card p-3 text-red-600">{{ boxesError }}</p>
+
+      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <article
+          v-for="b in boxes"
+          :key="b.id"
+          class="bb-card p-3 flex flex-col"
+        >
+          <a :href="b.website || '#'" target="_blank" rel="noopener" class="block">
+            <div class="aspect-[4/3] w-full overflow-hidden rounded" :style="{ background: 'var(--bb-surface-2)' }">
+              <img :src="b.imageUrl || defaultImage" :alt="b.name" style="width:100%;height:100%;object-fit:cover" />
+            </div>
           </a>
-        </div>
+
+          <div class="mt-3 flex-1 flex flex-col">
+            <h3 class="text-lg font-semibold">{{ b.name }}</h3>
+            <div class="text-sm text-muted">{{ b.category || '—' }}</div>
+            <p class="mt-2 text-sm" :style="{ color: 'var(--bb-foreground)' }">
+              {{ b.description || 'No description provided.' }}
+            </p>
+
+            <div class="mt-3 flex items-center justify-between">
+              <div class="font-bold">£{{ Number(b.price || 0).toFixed(2) }}</div>
+              <div class="text-sm">⭐ {{ (b.rating || 0).toFixed(1) }}<span class="text-muted"> ({{ b.ratingsCount || 0 }})</span></div>
+            </div>
+
+            <div class="mt-3 flex gap-2">
+              <a class="bb-btn bb-btn--ghost flex-1 text-center" :href="b.website || '#'" target="_blank" rel="noopener">Visit</a>
+              <a
+                class="bb-btn bb-btn--primary flex-1 text-center"
+                :href="b.affiliateLink || b.website || '#'"
+                target="_blank"
+                rel="noopener"
+              >Get Deal</a>
+            </div>
+          </div>
+        </article>
       </div>
-    </div>
+    </section>
 
-    <h2 v-if="categories.length">Top Subscription Categories</h2>
-    <div v-if="isLoading" class="loading">Loading categories...</div>
-    <div v-else class="categories">
-      <div v-for="category in categories" :key="category._id" class="category-box">
-        <h2>{{ category._id }}</h2>
-        <p>Average Rating: {{ category.avgRating.toFixed(1) }}</p>
-        <p>Popularity: {{ category.totalClicks }} clicks</p>
+    <!-- Top Categories -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold mb-3" style="font-family: var(--bb-font-heading);">Top Categories</h2>
+
+      <div v-if="catLoading" class="bb-card p-4" aria-busy="true">Loading categories…</div>
+      <p v-else-if="catsError" class="bb-card p-3 text-red-600">{{ catsError }}</p>
+
+      <div v-else-if="!categories.length" class="bb-card p-3 text-muted">
+        No category stats yet. Check back soon!
       </div>
-    </div>
 
-    <h2 v-if="user.name">Available Pages</h2>
-    <ul v-if="user.name">
-      <li v-if="enabledViews.includes('questionnaire')">
-        <router-link to="/questionnaire">Subscription Questionnaire</router-link>
-      </li>
-      <li v-if="enabledViews.includes('results')">
-        <router-link to="/results">Subscription Results</router-link>
-      </li>
-      <li v-if="enabledViews.includes('manage-affiliates')">
-        <router-link to="/manage-affiliates">Affiliate Partners</router-link>
-      </li>
-    </ul>
-
-    <button v-if="user.name" @click="logout" class="logout-button">Logout</button>
+      <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <article v-for="c in categories" :key="c.name" class="bb-card p-3">
+          <h3 class="font-semibold">{{ c.name }}</h3>
+          <p class="text-sm">Average Rating: <strong>{{ c.avgRating.toFixed(1) }}</strong></p>
+          <p class="text-sm">Popularity: <strong>{{ c.totalClicks }}</strong> clicks</p>
+        </article>
+      </div>
+    </section>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
-import API from "../api.js";
-
-export default {
-  name: "UserDashboard",
-  setup() {
-    const router = useRouter();
-    const user = ref({ name: "", email: "", profilePicture: "" });
-    const enabledViews = ref([]);
-    const categories = ref([]);
-    const subscriptionBoxes = ref([]);
-    const isLoading = ref(true);
-
-    onMounted(async () => {
-      try {
-        const status = await API.get("/auth/status");
-        if (!status.data.isAuthenticated) {
-          router.push("/login");
-          return;
-        }
-
-        const userRes = await API.get("/auth/me");
-        user.value = {
-          name: userRes.data.name,
-          email: userRes.data.email,
-          profilePicture: userRes.data.profilePicture || "https://via.placeholder.com/150",
-        };
-
-        const enabled = await API.get("/auth/enabled-views");
-        enabledViews.value = enabled.data.enabledViews;
-      } catch (err) {
-        console.error("❌ Auth error:", err);
-        router.push("/login");
-        return;
-      }
-
-      try {
-        const response = await API.get("/top-categories");
-        categories.value = response.data.categories;
-      } catch (err) {
-        console.error("Error fetching categories", err);
-      }
-
-      try {
-        const partnersResponse = await API.get("/subscription-boxes");
-        subscriptionBoxes.value = partnersResponse.data.boxes;
-      } catch (err) {
-        console.error("Error fetching subscription boxes", err);
-      } finally {
-        isLoading.value = false;
-      }
-    });
-
-    const logout = async () => {
-      try {
-        await API.get("/auth/logout");
-      } catch (e) {
-        console.error("Logout failed", e);
-      }
-      router.push("/");
-    };
-
-    return { user, enabledViews, categories, subscriptionBoxes, isLoading, logout };
-  },
-};
-</script>
-
 <style scoped>
-.dashboard {
-  padding: 20px;
-  text-align: center;
-}
+.dashboard { text-align: center; }
 
-/* ✅ Profile Picture */
-.profile-pic {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  margin-bottom: 10px;
-}
-
-/* ✅ Loading */
-.loading {
-  font-size: 18px;
-  font-weight: bold;
-  margin-top: 20px;
-}
-
-/* ✅ Categories */
-.categories {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.category-box {
-  padding: 15px;
-  background: #f5f5f5;
-  border-radius: 10px;
-  width: 250px;
-  text-align: center;
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-/* ✅ Subscription Boxes */
-.partners-section {
-  margin-top: 40px;
-}
-
-.partners-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
-}
-
-.partner-card {
-  padding: 15px;
-  background: #fff;
-  border-radius: 10px;
-  width: 250px;
-  text-align: center;
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.partner-card a {
-  text-decoration: none;
-  color: black;
-}
-
-.partner-logo {
-  width: 100px;
-  height: 100px;
-  object-fit: contain;
-  margin-bottom: 10px;
-}
-
-/* ✅ Logout Button */
-.logout-button {
-  background-color: #d9534f;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  border-radius: 5px;
-  margin-top: 20px;
-}
-
-.logout-button:hover {
-  background-color: #c9302c;
-}
+/* spacing & layout are handled by brand.css; minimal local styles here */
+.partners-section { margin-top: 24px; }
 </style>
