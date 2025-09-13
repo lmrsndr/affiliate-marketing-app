@@ -1,9 +1,10 @@
+// frontend/src/router/index.js
 import { createRouter, createWebHistory } from "vue-router";
 import { ref } from "vue";
-import axios from "axios";
+import API from "@/api"; // uses baseURL ending with /api + withCredentials: true
 import { useTwoFAStore } from "@/stores/useTwoFAStore";
 
-// ✅ Views
+// Views
 import HomeView from "../views/HomeView.vue";
 import SubscriptionQuestionnaire from "../views/SubscriptionQuestionnaire.vue";
 import SubscriptionResults from "../views/SubscriptionResults.vue";
@@ -17,146 +18,142 @@ import PartnerDashboard from "../views/PartnerDashboard.vue";
 import AdminAccounting from "../views/AdminAccounting.vue";
 import Verify2FA from "../views/Verify2FA.vue";
 
-// ✅ Axios setup
-const safeBaseURL = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-const axiosInstance = axios.create({
-  baseURL: safeBaseURL,
-  withCredentials: true,
-});
-
-// ✅ Reactive state
+// ───────────────────────────────────────────────────────────────
+// Reactive auth state (derived from /auth/status)
+// ───────────────────────────────────────────────────────────────
 const isAuthenticated = ref(false);
 const isAdmin = ref(false);
 const isPartner = ref(false);
+const mfaVerified = ref(false);
 
-// ✅ Auth check from /auth/status
+// Ask server for truth; update refs + store; return snapshot
 async function checkAuthState() {
   try {
-    const response = await axiosInstance.get("/auth/status");
+    const { data } = await API.get("/auth/status"); // { ok, user, mfaVerified }
+    const authed = !!data?.user;
+    const mfaOk = !!data?.mfaVerified;
 
-    if (response.data.isAuthenticated) {
-      isAuthenticated.value = true;
-      isAdmin.value = response.data.user.role === "admin";
-      isPartner.value = response.data.user.role === "partner";
+    isAuthenticated.value = authed;
+    isAdmin.value = authed && data.user.role === "admin";
+    isPartner.value = authed && data.user.role === "partner";
+    mfaVerified.value = mfaOk;
 
-      const twoFAStore = useTwoFAStore();
-      twoFAStore.setVerified(Boolean(response.data.user?.twoFAVerified));
-      console.log("🔐 2FA verified:", twoFAStore.isVerified);
+    const twoFA = useTwoFAStore();
+    twoFA.setVerified(mfaOk);
 
-      if (response.data.accessToken) {
-        sessionStorage.setItem("accessToken", response.data.accessToken);
-        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${response.data.accessToken}`;
-      }
-
-      console.log("✅ Authenticated:", response.data.user);
-
-      if (response.data.user.email2FA?.verified && !response.data.user.twoFA?.enabled) {
-        window.dispatchEvent(new CustomEvent("show-2fa-upgrade-prompt"));
-      }
-    } else {
-      throw new Error("Unauthenticated");
+    // Optional: show upgrade suggestion (your prior behavior)
+    if (authed && data.user?.email2FA?.verified && !data.user?.twoFA?.enabled) {
+      window.dispatchEvent(new CustomEvent("show-2fa-upgrade-prompt"));
     }
-  } catch (error) {
-    console.warn("⚠️ Not authenticated or session expired.");
+
+    return { authed, mfaOk, user: data.user };
+  } catch {
+    // Treat as logged out on any error
     isAuthenticated.value = false;
     isAdmin.value = false;
     isPartner.value = false;
-
-    const twoFAStore = useTwoFAStore();
-    twoFAStore.reset();
-
-    sessionStorage.removeItem("accessToken");
-    delete axiosInstance.defaults.headers.common["Authorization"];
+    mfaVerified.value = false;
+    useTwoFAStore().reset();
+    return { authed: false, mfaOk: false, user: null };
   }
 }
 
-// ✅ Routes
+// ───────────────────────────────────────────────────────────────
+// Routes
+// ───────────────────────────────────────────────────────────────
 const routes = [
-  { path: '/forgot-password', name: 'ForgotPassword', component: () => import('@/views/ForgotPassword.vue') },
-  { path: '/register', name: 'RegisterUser', component: () => import('@/views/RegisterUser.vue') },
-  { path: '/debug-auth', name: 'DebugAuth', component: () => import('@/views/DebugAuthStatus.vue') },
-  { path: '/setup-2fa', name: 'Setup2FA', component: () => import('../views/Auth/Verify2FA.vue'), meta: { public: true } },
-  { path: "/", component: HomeView },
-  { path: "/partner/:id", component: PartnerDetails },
-  { path: "/questionnaire", component: SubscriptionQuestionnaire, meta: { requiresAuth: true } },
-  { path: "/results", component: SubscriptionResults, meta: { requiresAuth: true } },
-  { path: "/dashboard", component: UserDashboard, meta: { requiresAuth: true } },
-  { path: "/admin-dashboard", component: AdminDashboard, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: "/forgot-password", name: "ForgotPassword", component: () => import("@/views/ForgotPassword.vue") },
+  { path: "/register",        name: "RegisterUser",   component: () => import("@/views/RegisterUser.vue") },
+  { path: "/debug-auth",      name: "DebugAuth",      component: () => import("@/views/DebugAuthStatus.vue") },
+  { path: "/setup-2fa",       name: "Setup2FA",       component: () => import("../views/Auth/Verify2FA.vue"), meta: { public: true } },
+
+  { path: "/",                component: HomeView },
+  { path: "/partner/:id",     component: PartnerDetails },
+
+  { path: "/questionnaire",   component: SubscriptionQuestionnaire, meta: { requiresAuth: true } },
+  { path: "/results",         component: SubscriptionResults,       meta: { requiresAuth: true } },
+
+  { path: "/dashboard",       component: UserDashboard,   meta: { requiresAuth: true } },
+  { path: "/admin-dashboard", component: AdminDashboard,  meta: { requiresAuth: true, requiresAdmin: true } },
   { path: "/partner-dashboard", component: PartnerDashboard, meta: { requiresAuth: true, requiresPartner: true } },
+
   { path: "/manage-affiliates", component: AffiliatePartners, meta: { requiresAuth: true } },
-  { path: "/admin/accounting", component: AdminAccounting, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: "/login", component: AdminLogin },
-  { path: "/auth/callback", component: OAuthCallback },
-  { path: "/verify-2fa", component: Verify2FA, meta: { requiresAuth: true } },
+  { path: "/admin/accounting",  component: AdminAccounting,  meta: { requiresAuth: true, requiresAdmin: true } },
+
+  { path: "/login",          component: AdminLogin,   meta: { public: true } },
+  { path: "/auth/callback",  component: OAuthCallback, meta: { public: true } },
+
+  { path: "/verify-2fa",     component: Verify2FA,    meta: { requiresAuth: true } },
 ];
 
-// ✅ Router instance
+// Router
 const router = createRouter({
   history: createWebHistory(),
   routes,
 });
 
-// ✅ Route Guard
+// ───────────────────────────────────────────────────────────────
+// Global guard — server is the source of truth
+// ───────────────────────────────────────────────────────────────
 router.beforeEach(async (to, from, next) => {
-  const requiresAuth = to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresPartner;
+  const isPublic = !!to.meta?.public;
+  const requiresAuth = !!(to.meta?.requiresAuth || to.meta?.requiresAdmin || to.meta?.requiresPartner);
 
-  const twoFAStore = useTwoFAStore();
-  if (!twoFAStore.isVerified) {
-    twoFAStore.syncFromCookie();
-  }
-
-  if (to.path === "/login" || to.path === "/auth/callback") {
-    return next();
-  }
-
-  if (requiresAuth && !isAuthenticated.value) {
+  // Always refresh auth state when navigating to a protected route
+  if (requiresAuth || to.path === "/login") {
     await checkAuthState();
   }
 
-  if (requiresAuth && !isAuthenticated.value) {
-    console.warn("🔒 Not authenticated. Redirecting to /login");
-    return next("/login");
-  }
-
-  const needs2FA = !twoFAStore.isVerified;
-  if (requiresAuth && needs2FA && to.path !== "/verify-2fa") {
-    console.warn("🔐 2FA not verified. Redirecting to /verify-2fa");
-    return next("/verify-2fa");
-  }
-
-  if (!needs2FA && to.path === "/verify-2fa") {
-    console.warn("✅ 2FA complete. Redirecting to dashboard...");
-    if (isAdmin.value) return next("/admin-dashboard");
+  // If already logged in, don't show /login again
+  if (to.path === "/login" && isAuthenticated.value) {
+    if (isAdmin.value)   return next("/admin-dashboard");
     if (isPartner.value) return next("/partner-dashboard");
     return next("/dashboard");
   }
 
-  if (to.meta.requiresAdmin && !isAdmin.value) {
-    return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
+  // Not authenticated → protect private routes
+  if (requiresAuth && !isAuthenticated.value) {
+    return next("/login");
   }
 
-  if (to.meta.requiresPartner && !isPartner.value) {
+  // 2FA gate for private routes
+  const needsMfa = !mfaVerified.value;
+  if (requiresAuth && needsMfa && to.path !== "/verify-2fa") {
+    return next("/verify-2fa");
+  }
+  if (!needsMfa && to.path === "/verify-2fa") {
+    if (isAdmin.value)   return next("/admin-dashboard");
+    if (isPartner.value) return next("/partner-dashboard");
+    return next("/dashboard");
+  }
+
+  // Role gates
+  if (to.meta?.requiresAdmin && !isAdmin.value) {
+    return isPartner.value ? next("/partner-dashboard") : next("/dashboard");
+  }
+  if (to.meta?.requiresPartner && !isPartner.value) {
     return isAdmin.value ? next("/admin-dashboard") : next("/dashboard");
   }
 
-  next();
+  return next();
 });
 
-// ✅ Logout function
+// ───────────────────────────────────────────────────────────────
+// Logout helper
+// ───────────────────────────────────────────────────────────────
 export function logout() {
   isAuthenticated.value = false;
   isAdmin.value = false;
   isPartner.value = false;
+  mfaVerified.value = false;
 
-  const twoFAStore = useTwoFAStore();
-  twoFAStore.reset();
+  const twoFA = useTwoFAStore();
+  twoFA.reset();
 
-  sessionStorage.removeItem("accessToken");
-  delete axiosInstance.defaults.headers.common["Authorization"];
-
-  axiosInstance.get("/auth/logout")
+  // Server uses GET /auth/logout in your backend; keep that.
+  API.get("/auth/logout")
     .then(() => console.log("✅ Logged out"))
-    .catch((err) => console.error("❌ Logout error:", err.response?.data || err.message));
+    .catch((err) => console.error("❌ Logout error:", err?.response?.data || err?.message));
 
   router.push("/login");
 }
