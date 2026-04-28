@@ -10,8 +10,8 @@ import axios from "axios";
 if (!import.meta.env.VITE_API_URL) {
   console.warn("⚠️ Missing VITE_API_URL in environment variables!");
 }
-// IMPORTANT: VITE_API_URL should point to your backend API root, e.g. https://api.bundlebee.co.uk/api
-const safeBaseURL = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk/api").replace(/\/+$/, "");
+// IMPORTANT: VITE_API_URL should point to your backend API root, e.g. http://localhost:5000/api
+const safeBaseURL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/+$/, "");
 
 const API = axios.create({
   baseURL: safeBaseURL,
@@ -220,17 +220,17 @@ export const fetchAffiliatePartners = async () => (await API.get("/admin/affilia
 export const fetchPartnerAnalytics = async (params = {}) => (await API.get("/partner/analytics", { params })).data;
 export const fetchPartnerComments  = async () => (await API.get("/partner/comments")).data;
 export const replyToComment        = async ({ commentId, reply }) =>
-  (await API.post("/partner/comments/" + encodeURIComponent(commentId) + "/reply", { reply })).data;
+  (await API.post("/partner/reply", { commentId, reply })).data;
 
 // Promotions
 export const uploadPromoImage = async (formData) =>
-  (await API.post("/partner/promo/image", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
+  (await API.post("/partner/upload-ad", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
 export const uploadPromoVideo = async (formData) =>
   (await API.post("/partner/promo/video", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
 
 // Subscription management
 export const getPartnerSubscription    = async () => (await API.get("/partner/subscription")).data;
-export const updatePartnerSubscription = async (tier) => (await API.post("/partner/subscription", { tier })).data;
+export const updatePartnerSubscription = async (tier) => (await API.put("/partner/subscription", { tier })).data;
 
 /* ──────────────────────────────────────────────────────────────
    2FA (updated to match backend mounts: /2fa-email and /2fa-app)

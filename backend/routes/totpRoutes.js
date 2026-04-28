@@ -5,6 +5,7 @@ const requireVerified2FA = require("../middleware/requireVerified2FA");
 const totp = require("../controllers/totpController");
 
 // Pre-MFA setup/verify (logged-in, no MFA required)
+router.get ("/status", requireAuth,      totp.getTOTPStatus);
 router.get ("/setup",  requireAuth,      totp.generateTOTPSecret);
 router.post("/verify", requireAuth,      totp.verifyTOTP);
 

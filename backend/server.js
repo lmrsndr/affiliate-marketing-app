@@ -18,7 +18,6 @@ const nodemailer = require("nodemailer");
 const path = require("path");
 const mongoose = require("mongoose"); // for /api/ready
 const assertCsp = require("./middleware/assertCsp"); // ✅ tight CSP dev safeguard
-const requireVerified2FA = require("./middleware/requireVerified2FA"); // ✅ 2FA gate for protected APIs
 
 // ───────────────────────────────────────────────────────────────
 // ENV + sanity checks
@@ -34,6 +33,7 @@ const {
   GOOGLE_CLIENT_SECRET,
   GOOGLE_REDIRECT_URI,
   CORS_ORIGINS,
+  FRONTEND_URL = "http://localhost:5173",
   COOKIE_DOMAIN = ".bundlebee.co.uk",
   EMAIL_ZOHO,
   PASS_ZOHO,
@@ -44,6 +44,8 @@ const PORT =
   typeof rawPort === "string" && rawPort.trim() !== "" && !Number.isNaN(Number(rawPort))
     ? Number(rawPort)
     : 5000;
+const FRONTEND_ORIGIN = FRONTEND_URL.replace(/\/+$/, "");
+const frontendRedirect = (path) => `${FRONTEND_ORIGIN}${path}`;
 
 [
   ["MONGO_URI", MONGO_URI],
@@ -80,32 +82,34 @@ const transporter = nodemailer.createTransport({
 // ───────────────────────────────────────────────────────────────
 const app = express();
 
-app.get('/api/auth/debug/cookies', (req, res) => {
-  res.json({
-    ok: true,
-    saw: {
-      hasAuth: !!(req.cookies && req.cookies.authCookie),
-      hasRefresh: !!(req.cookies && req.cookies.refreshCookie)
-    },
-    host: req.headers['host'],
-    xfh: req.headers['x-forwarded-host'] || null
+if (!IS_PROD) {
+  app.get('/api/auth/debug/cookies', (req, res) => {
+    res.json({
+      ok: true,
+      saw: {
+        hasAuth: !!(req.cookies && req.cookies.authCookie),
+        hasRefresh: !!(req.cookies && req.cookies.refreshCookie)
+      },
+      host: req.headers['host'],
+      xfh: req.headers['x-forwarded-host'] || null
+    });
   });
-}); // ← fixed: removed extra "});"
 
-// --- BB WHOAMI (debug-only) ---
-app.get('/api/auth/whoami', attachUserIfPresent, (req, res) => {
-  res.json({
-    ok: true,
-    sawCookies: {
-      authCookie: !!(req.cookies && req.cookies.authCookie),
-      refreshCookie: !!(req.cookies && req.cookies.refreshCookie),
-    },
-    auth: req.auth || null,
-    user: res.locals.user || null,
-    where: 'whoami'
+  // --- BB WHOAMI (debug-only) ---
+  app.get('/api/auth/whoami', attachUserIfPresent, (req, res) => {
+    res.json({
+      ok: true,
+      sawCookies: {
+        authCookie: !!(req.cookies && req.cookies.authCookie),
+        refreshCookie: !!(req.cookies && req.cookies.refreshCookie),
+      },
+      auth: req.auth || null,
+      user: res.locals.user || null,
+      where: 'whoami'
+    });
   });
-});
-// --- END BB WHOAMI ---
+  // --- END BB WHOAMI ---
+}
 // --- BB CANONICAL CORS (early) ---
 app.set('trust proxy', 1);
 app.use(cookieParser()); // NOTE: cookieParser is used multiple times later (safe but redundant)
@@ -154,7 +158,9 @@ function bbListEndpoints(app) {
   });
   return out;
 }
-app.get('/__bb/routes', (_req, res) => { res.json({ ok: true, routes: bbListEndpoints(app) }); });
+if (!IS_PROD) {
+  app.get('/__bb/routes', (_req, res) => { res.json({ ok: true, routes: bbListEndpoints(app) }); });
+}
 // --- END BB ROUTE DUMPER ---
 // --- BB GLOBAL LOGGER + SIGNATURE ---
 app.use((req, res, next) => {
@@ -172,7 +178,7 @@ if (!app._bbAuthEarlyAdded) {
 
   // use the top-level import: const attachUserIfPresent = require('./middleware/attachUserIfPresent');
   app.get('/api/auth/status', attachUserIfPresent, (req, res) => {
-    const user = res.locals.user || null;
+    const user = req.user || res.locals.user || null;
     const mfaVerified = !!(req.auth && req.auth.mfaVerified);
     res.json({ ok: true, user, mfaVerified, source: req.auth?.source || null, where: 'early' });
   });
@@ -191,7 +197,9 @@ if (!app._bbAuthEarlyAdded) {
 // --- BB HEALTH ROUTES (early) ---
 try {
   if (!app._bbHealthAdded) {
-    app.get('/__bb/health', (_req, res) => res.status(200).json({ ok: true, where: '__bb' }));
+    if (!IS_PROD) {
+      app.get('/__bb/health', (_req, res) => res.status(200).json({ ok: true, where: '__bb' }));
+    }
     app.get('/api/health',   (_req, res) => res.status(200).json({ ok: true, where: 'api' }));
     app._bbHealthAdded = true;
   }
@@ -265,7 +273,7 @@ app.use(
 app.use(assertCsp(NODE_ENV));
 
 // CORS
-const fallbackOrigins = ["https://bundlebee.co.uk", "https://www.bundlebee.co.uk", "http://localhost:5173"];
+const fallbackOrigins = [FRONTEND_ORIGIN, "http://localhost:5173"];
 const parsedAllowlist = (CORS_ORIGINS ? CORS_ORIGINS.split(",") : fallbackOrigins)
   .map((s) => s.trim())
   .filter(Boolean);
@@ -410,7 +418,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
           { expiresIn: 300 } // 5 minutes
         );
         res.cookie("otpTicket", otpTicket, getCookieOpts(req));
-        return res.redirect("https://bundlebee.co.uk/setup-2fa?oauth=1");
+        return res.redirect(frontendRedirect("/setup-2fa?oauth=1"));
       }
 
       // Otherwise: no 2FA required -> issue cookies with mfaVerified:true
@@ -428,17 +436,17 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
       res.cookie("authCookie", accessToken, getCookieOpts(req));
       res.cookie("refreshCookie", refreshToken, getCookieOpts(req));
 
-      return res.redirect("https://bundlebee.co.uk/auth/callback");
+      return res.redirect(frontendRedirect("/auth/callback"));
     } catch (err) {
       console.error("❌ OAuth error:", err);
-      return res.redirect("https://bundlebee.co.uk/login?error=server");
+      return res.redirect(frontendRedirect("/login?error=server"));
     }
   };
 
   app.get(
     "/auth/google/callback",
     passport.authenticate("google", {
-      failureRedirect: "https://bundlebee.co.uk/login?error=unauthorized",
+      failureRedirect: frontendRedirect("/login?error=unauthorized"),
       session: false,
     }),
     handler
@@ -462,11 +470,12 @@ app.get("/auth/logout", (req, res) => {
   });
 });
 
-// Test cookie
-app.get("/api/test-cookie", (req, res) => {
-  res.cookie("test_cookie", "yes", getCookieOpts(req));
-  res.send("✅ test_cookie set");
-});
+if (!IS_PROD) {
+  app.get("/api/test-cookie", (req, res) => {
+    res.cookie("test_cookie", "yes", getCookieOpts(req));
+    res.send("✅ test_cookie set");
+  });
+}
 
 // Health & readiness
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
@@ -487,9 +496,9 @@ app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 // API routes
 app.use("/api/auth/local", require("./routes/localAuthRoutes"));
 
-// ✅ Enforce verified 2FA for admin & partner APIs
-app.use("/api/admin", requireVerified2FA, require("./routes/adminRoutes"));
-app.use("/api/partner", requireVerified2FA, require("./routes/partnerRoutes"));
+// Protected APIs enforce verified 2FA and roles inside their routers.
+app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/partner", require("./routes/partnerRoutes"));
 
 app.use("/api/boxes", require("./routes/boxRoutes"));
 app.use("/api", require("./routes/subscriptionRoutes"));

@@ -1,10 +1,18 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const attachUserIfPresent = require("../middleware/attachUserIfPresent");
+const requireVerified2FA = require("../middleware/requireVerified2FA");
+const authController = require("../controllers/authController");
 
 const router = express.Router();
 
 const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
+const IS_PROD = process.env.NODE_ENV === "production";
+
+router.post("/forgot-password", authController.forgotPassword);
+router.post("/reset-password", authController.resetPassword);
+router.post("/forgot-username", authController.forgotUsername);
+router.post("/trust-device", requireVerified2FA, authController.trustThisDevice);
 
 /* ──────────────────────────────────────────────────────────────
    Helpers
@@ -20,23 +28,25 @@ function getCookieBaseDomain(req) {
 /* ──────────────────────────────────────────────────────────────
    Debug: confirm cookies arrive
 ────────────────────────────────────────────────────────────── */
-router.get("/debug/cookies", (req, res) => {
-  res.json({
-    ok: true,
-    saw: {
-      hasAuth: !!(req.cookies && req.cookies.authCookie),
-      hasRefresh: !!(req.cookies && req.cookies.refreshCookie),
-    },
-    host: req.headers["host"],
-    xfh: req.headers["x-forwarded-host"] || null,
+if (!IS_PROD) {
+  router.get("/debug/cookies", (req, res) => {
+    res.json({
+      ok: true,
+      saw: {
+        hasAuth: !!(req.cookies && req.cookies.authCookie),
+        hasRefresh: !!(req.cookies && req.cookies.refreshCookie),
+      },
+      host: req.headers["host"],
+      xfh: req.headers["x-forwarded-host"] || null,
+    });
   });
-});
+}
 
 /* ──────────────────────────────────────────────────────────────
    Status: reports auth + user; optionally includes a short token
 ────────────────────────────────────────────────────────────── */
 router.get("/status", attachUserIfPresent, (req, res) => {
-  const user = res.locals.user || null;
+  const user = req.user || res.locals.user || null;
   const mfaVerified = !!(req.auth && req.auth.mfaVerified);
   const isAuthenticated =
     !!user || !!(req.auth && req.auth.isAuthenticated); // expose for older guards
@@ -70,6 +80,22 @@ router.get("/next", attachUserIfPresent, (req, res) => {
   if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: "login", where: "routes" });
   if (!mfaVerified) return res.json({ ok: true, next: "verify-2fa", where: "routes" });
   return res.json({ ok: true, next: "dashboard", where: "routes" });
+});
+
+router.get("/enabled-views", attachUserIfPresent, (req, res) => {
+  if (!req.auth?.isAuthenticated || !req.auth?.mfaVerified || !req.user) {
+    return res.status(401).json({ ok: false, message: "Unauthorized" });
+  }
+
+  const enabledViews = [];
+  if (req.user.role === "admin") {
+    enabledViews.push("manage-affiliates", "admin-dashboard", "admin-accounting");
+  }
+  if (req.user.role === "partner") {
+    enabledViews.push("partner-dashboard", "partner-invoices");
+  }
+
+  return res.json({ ok: true, enabledViews });
 });
 
 /* ──────────────────────────────────────────────────────────────

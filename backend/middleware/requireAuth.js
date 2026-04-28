@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { setAuthState, userFromClaims } = require("./authUser");
 
 /** Logged-in gate (cookie or header). Does NOT require MFA. */
 module.exports = (req, res, next) => {
@@ -12,8 +13,8 @@ module.exports = (req, res, next) => {
 
   try {
     const claims = jwt.verify(token, process.env.JWT_SECRET);
-    req.auth = { isAuthenticated: true, mfaVerified: !!claims.mfaVerified, claims, source: "fallback" };
-    req.user = req.user || { _id: claims.id, role: claims.role, email: claims.email };
+    const user = req.user || userFromClaims(claims);
+    setAuthState(req, user, claims, "fallback");
     return next();
   } catch {
     return res.status(401).json({ message: "Unauthorized" });

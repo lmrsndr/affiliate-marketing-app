@@ -35,7 +35,7 @@ const signRefreshToken = (user, mfaVerified) =>
 
 exports.generateTOTPSecret = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+twoFA.secret");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const secret = speakeasy.generateSecret({ name: `BundleBee (${user.email})` });
@@ -54,10 +54,27 @@ exports.generateTOTPSecret = async (req, res) => {
   }
 };
 
+exports.getTOTPStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("twoFA.enabled email2FA.enabled email2FA.verified");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({
+      enabled: !!user.twoFA?.enabled,
+      appEnabled: !!user.twoFA?.enabled,
+      emailEnabled: !!user.email2FA?.enabled,
+      emailVerified: !!user.email2FA?.verified,
+    });
+  } catch (e) {
+    console.error("getTOTPStatus error:", e);
+    res.status(500).json({ message: "Failed to load 2FA status" });
+  }
+};
+
 exports.verifyTOTP = async (req, res) => {
   const { token } = req.body || {};
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+twoFA.secret");
     if (!user?.twoFA?.secret) return res.status(400).json({ message: "TOTP not initialized" });
 
     const ok = speakeasy.totp.verify({
@@ -89,7 +106,7 @@ exports.verifyTOTP = async (req, res) => {
 
 exports.disableTOTP = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+twoFA.secret");
     if (!user?.twoFA?.enabled) return res.status(400).json({ message: "TOTP not enabled" });
     user.twoFA.enabled = false;
     user.twoFA.secret = undefined;

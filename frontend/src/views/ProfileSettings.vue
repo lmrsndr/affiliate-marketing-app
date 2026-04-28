@@ -5,15 +5,13 @@ import { guardedGet } from "@/lib/guarded-api"; // our 401/403-safe GET
 
 // Lazy-load tab panes
 const ProfileGeneral   = () => import("@/components/ProfileGeneral.vue");
-const ProfilePassword  = () => import("@/components/ProfilePassword.vue");
-const Profile2FA       = () => import("@/components/Profile2FA.vue");
+const Profile2FA       = () => import("@/components/User2FA.vue");
 const ProfileSessions  = () => import("@/components/ProfileSessions.vue");
 const ProfileActivity  = () => import("@/components/ProfileActivity.vue");
 
 // Tab registry (single source of truth)
 const TABS = [
   { key: "general",  label: "General",         component: ProfileGeneral },
-  { key: "password", label: "Password",        component: ProfilePassword },
   { key: "2fa",      label: "Two-Factor Auth", component: Profile2FA },
   { key: "sessions", label: "Sessions",        component: ProfileSessions },
   { key: "activity", label: "Activity Log",    component: ProfileActivity },

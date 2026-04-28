@@ -71,7 +71,7 @@ function normBox(b) {
 ──────────────────────────────────────────────────────────── */
 async function loadAuth() {
   // guardedGet handles 401→/login and 403(MFA)→/verify-2fa
-  const { data } = await guardedGet("/auth/status");
+  const data = await guardedGet("/auth/status");
   // expected shape: { ok, user, mfaVerified, ... }
   user.value = data?.user || null;
 
@@ -152,7 +152,7 @@ const displayEmail = computed(() => user.value?.email || "");
 ──────────────────────────────────────────────────────────── */
 async function logout() {
   try {
-    await API.post("/auth/logout", {}); // POST to avoid caches
+    await API.get("/auth/logout");
   } catch {}
   router.replace("/login");
 }

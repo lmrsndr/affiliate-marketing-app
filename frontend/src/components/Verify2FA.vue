@@ -9,7 +9,7 @@
 
     <div class="text-center text-sm text-gray-500 mt-8">
       Prefer stronger protection?
-      <router-link to="/settings/security" class="text-blue-500 underline">Set up app-based 2FA</router-link>
+      <router-link :to="{ path: '/profile', query: { tab: '2fa' } }" class="text-blue-500 underline">Set up app-based 2FA</router-link>
     </div>
   </div>
 </template>

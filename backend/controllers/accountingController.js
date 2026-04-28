@@ -63,6 +63,45 @@ exports.uploadExpense = async (req, res) => {
 };
 
 // ─────────────────────────────
+// PUT: Update expense metadata
+// ─────────────────────────────
+exports.updateExpense = async (req, res) => {
+  try {
+    const allowed = ["vendor", "amount", "currency", "category", "date", "notes", "missingReason"];
+    const update = {};
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(req.body, key)) update[key] = req.body[key];
+    }
+
+    const expense = await Expense.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    });
+    if (!expense) return res.status(404).json({ error: "Expense not found" });
+
+    res.json({ success: true, expense });
+  } catch (err) {
+    console.error("❌ Expense update failed:", err);
+    res.status(400).json({ error: "Expense update failed" });
+  }
+};
+
+// ─────────────────────────────
+// DELETE: Delete an expense record
+// ─────────────────────────────
+exports.deleteExpense = async (req, res) => {
+  try {
+    const expense = await Expense.findByIdAndDelete(req.params.id);
+    if (!expense) return res.status(404).json({ error: "Expense not found" });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Expense delete failed:", err);
+    res.status(500).json({ error: "Expense delete failed" });
+  }
+};
+
+// ─────────────────────────────
 // PUT: Reupload missing expense file
 // ─────────────────────────────
 exports.reuploadExpenseFile = async (req, res) => {
@@ -89,12 +128,42 @@ exports.reuploadExpenseFile = async (req, res) => {
 };
 
 // ─────────────────────────────
+// PUT: Reupload missing transaction invoice file
+// ─────────────────────────────
+exports.reuploadTransactionFile = async (req, res) => {
+  try {
+    const txn = await Transaction.findById(req.params.id);
+    if (!txn) return res.status(404).json({ error: "Transaction not found" });
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const s3Url = await uploadToS3(
+      req.file.buffer,
+      req.file.originalname,
+      "invoices",
+      req.file.mimetype
+    );
+
+    txn.invoiceUrl = s3Url;
+    txn.fileAvailable = true;
+    await txn.save();
+
+    res.json({ success: true, fileUrl: s3Url });
+  } catch (err) {
+    console.error("❌ Invoice reupload failed:", err);
+    res.status(500).json({ error: "Invoice reupload failed" });
+  }
+};
+
+// ─────────────────────────────
 // GET: Generate and return invoice signed URL + email it to partner
 // ─────────────────────────────
 exports.getInvoice = async (req, res) => {
   try {
     const txn = await Transaction.findById(req.params.txnId).populate("partnerId");
     if (!txn) return res.status(404).send("Transaction not found");
+    if (req.user?.role === "partner" && String(txn.partnerId?._id || txn.partnerId) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     const pdfBuffer = await generateInvoicePDF(txn, txn.partnerId);
     const signedUrl = await uploadToS3(pdfBuffer, `invoice-${txn._id}.pdf`, "invoices", "application/pdf");
@@ -133,7 +202,7 @@ exports.getPartnerInvoices = async (req, res) => {
       invoiceUrl: { $exists: true }
     });
 
-    res.status(200).json({ invoices });
+    res.status(200).json({ invoices, items: invoices });
   } catch (err) {
     console.error("❌ Failed to fetch partner invoices:", err);
     res.status(500).json({ message: "Failed to fetch invoices" });

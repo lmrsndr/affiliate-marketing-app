@@ -43,7 +43,7 @@
 import { ref } from "vue";
 import API from "@/api"; // your axios instance with baseURL ending in /api and withCredentials: true
 
-const API_BASE = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk/api").replace(/\/+$/, "");
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/+$/, "");
 const OAUTH_BASE = API_BASE.replace(/\/api$/, "");
 
 const email = ref("");

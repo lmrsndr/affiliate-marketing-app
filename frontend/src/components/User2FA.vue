@@ -115,7 +115,7 @@ const startLockout = () => {
 
 const load2FAStatus = async () => {
   try {
-    const { data } = await API.get("/2fa/status");
+    const { data } = await API.get("/2fa-app/status");
     twoFA.value = data;
 
     // ✅ Keep store in sync
@@ -127,8 +127,8 @@ const load2FAStatus = async () => {
 
 const startUpgrade = async () => {
   try {
-    const { data } = await API.get("/2fa-totp/generate");
-    qrCodeUrl.value = data.qrCodeUrl;
+    const { data } = await API.get("/2fa-app/setup");
+    qrCodeUrl.value = data.qrCodeUrl || data.qr;
     showSetup.value = true;
     startCountdown();
   } catch (err) {
@@ -142,9 +142,9 @@ const verifyApp2FA = async () => {
   if (lockout.value) return;
 
   try {
-    const { data } = await API.post("/2fa-totp/verify", { code: totpCode.value });
+    const { data } = await API.post("/2fa-app/verify", { token: totpCode.value });
 
-    if (data.success) {
+    if (data.success || data.accessToken || data.message === "TOTP verified") {
       await load2FAStatus();
       showSetup.value = false;
       totpCode.value = "";
@@ -171,7 +171,7 @@ const verifyApp2FA = async () => {
 
 const disableApp2FA = async () => {
   try {
-    await API.post("/2fa-totp/disable");
+    await API.post("/2fa-app/disable");
     await load2FAStatus();
     qrCodeUrl.value = "";
     totpCode.value = "";
@@ -248,3 +248,4 @@ onMounted(() => {
   padding: 0;
   margin: 0;
 }
+</style>

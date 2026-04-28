@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
+const { attachUserFromClaims } = require("./authUser");
 
 /** Post-MFA gate: requires mfaVerified === true; TOTP for admin/partner. */
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
 
   let claims = req.auth?.claims || null;
   let mfaVerified = req.auth?.mfaVerified || false;
+  let source = req.auth?.source || null;
 
   // ─────────────────────────────────────────────────────────────
   // 1) Try access token first (cookie or Bearer header)
@@ -18,10 +20,12 @@ module.exports = (req, res, next) => {
         const decoded = jwt.verify(access, JWT_SECRET);
         claims = decoded;
         mfaVerified = !!decoded.mfaVerified;
+        source = bearer ? "authorization" : "auth";
       }
     } catch {
       claims = null;
       mfaVerified = false;
+      source = null;
     }
   }
 
@@ -36,10 +40,12 @@ module.exports = (req, res, next) => {
         const decoded = jwt.verify(refresh, JWT_REFRESH_SECRET);
         claims = decoded;
         mfaVerified = !!decoded.mfaVerified;
+        source = "refresh";
       }
     } catch {
       claims = null;
       mfaVerified = false;
+      source = null;
     }
   }
 
@@ -57,15 +63,24 @@ module.exports = (req, res, next) => {
     return res.status(403).json({ message: "MFA required", reason: "MFA_REQUIRED" });
   }
 
-  // Keep req.auth shape compatible with existing code that reads req.auth?.claims
-  req.auth = Object.assign({}, req.auth, { claims, mfaVerified: true });
+  let user;
+  try {
+    const attached = await attachUserFromClaims(req, claims, source, {
+      isAuthenticated: true,
+    });
+    user = attached.user;
+
+    if (!attached.found) {
+      return res.status(401).json({ ok: false, message: "Invalid user", reason: "USER_NOT_FOUND" });
+    }
+  } catch (err) {
+    console.error("requireVerified2FA user lookup failed:", err);
+    return res.status(500).json({ ok: false, message: "Auth lookup failed", reason: "AUTH_LOOKUP_FAILED" });
+  }
 
   // ─────────────────────────────────────────────────────────────
   // 5) Role / 2FA policy (UNCHANGED)
   // ─────────────────────────────────────────────────────────────
-  const user =
-    req.user || { role: claims.role, twoFA: { enabled: false }, email2FA: { verified: false } };
-
   if ((user.role === "admin" || user.role === "partner") && !user.twoFA?.enabled) {
     return res.status(403).json({ message: "TOTP required for this role", reason: "TOTP_REQUIRED" });
   }

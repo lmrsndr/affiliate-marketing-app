@@ -1,11 +1,23 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+const UserInteractionSchema = new mongoose.Schema(
+  {
+    action: { type: String, required: true },
+    details: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const UserSchema = new mongoose.Schema(
   {
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     name:         { type: String, required: true },
+    displayName:  { type: String, trim: true, default: "" },
+    bio:          { type: String, trim: true, default: "" },
     role:         { type: String, enum: ["user", "admin", "partner"], default: "user" },
+    suspended:    { type: Boolean, default: false },
 
     // Local auth
     password:     { type: String, select: false }, // bcrypt hash stored here
@@ -22,11 +34,26 @@ const UserSchema = new mongoose.Schema(
       backupCodes: [{ type: String, select: false }],
     },
     email2FA: {
-      enabled:  { type: Boolean, default: false },
-      verified: { type: Boolean, default: false },
-      code:     { type: String, select: false },
-      expiresAt:{ type: Date,   select: false },
+      enabled:        { type: Boolean, default: false },
+      verified:       { type: Boolean, default: false },
+      code:           { type: String, select: false },
+      expiresAt:      { type: Date, select: false },
+      failedAttempts: { type: Number, default: 0 },
+      lastFailedAt:   { type: Date, default: null },
+      lastSentAt:     { type: Date, default: null },
     },
+
+    // Preferences
+    notificationPreferences: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    appearance:              { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+
+    // Legacy/session compatibility fields still written by active auth controllers.
+    twoFAVerified: { type: Boolean, default: false },
+    interactions:  { type: [UserInteractionSchema], default: () => [] },
+
+    // Password reset
+    resetToken:        { type: String, select: false },
+    resetTokenExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );

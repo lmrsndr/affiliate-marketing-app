@@ -161,7 +161,7 @@ async function updateTier() {
 }
 
 /* ────────────────────────────────────────────────────────────
-   Comments: reply (try comments/:id/reply, fall back to /partner/reply)
+   Comments: reply
 ──────────────────────────────────────────────────────────── */
 const replyingId = ref(null);
 async function submitReply(comment) {
@@ -169,11 +169,7 @@ async function submitReply(comment) {
   replyingId.value = comment._id;
   clearMsgs();
   try {
-    try {
-      await API.post(`/partner/comments/${encodeURIComponent(comment._id)}/reply`, { reply: comment.reply });
-    } catch (_e) {
-      await API.post("/partner/reply", { commentId: comment._id, reply: comment.reply });
-    }
+    await API.post("/partner/reply", { commentId: comment._id, reply: comment.reply });
     comment.reply = "";
     showInfo("Reply sent.");
   } catch (e) {

@@ -11,9 +11,11 @@ if (!uri) {
   process.exit(1);
 }
 
-mongoose.set('debug', (collection, method, query) => {
-    logger.info(`MongoDB Query - Collection: ${collection}, Method: ${method}, Query: ${JSON.stringify(query)}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  mongoose.set('debug', (collection, method, query) => {
+      logger.info(`MongoDB Query - Collection: ${collection}, Method: ${method}, Query: ${JSON.stringify(query)}`);
+  });
+}
 
 const connectDB = async () => {
   if (mongoose.connection.readyState >= 1) {

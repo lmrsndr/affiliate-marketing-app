@@ -11,7 +11,7 @@
             You're using email-based 2FA. For stronger protection, switch to an authenticator app.
           </span>
           <router-link
-            to="/settings/security"
+            :to="{ path: '/profile', query: { tab: '2fa' } }"
             class="text-blue-600 hover:underline mt-2 block text-sm font-semibold"
           >
             Set Up App-Based 2FA →

@@ -17,6 +17,7 @@ import PartnerDetails from "../views/PartnerDashboard.vue";
 import PartnerDashboard from "../views/PartnerDashboard.vue";
 import AdminAccounting from "../views/AdminAccounting.vue";
 import Verify2FA from "../views/Verify2FA.vue";
+import ProfileSettings from "../views/ProfileSettings.vue";
 
 // ───────────────────────────────────────────────────────────────
 // Reactive auth state (derived from /auth/status)
@@ -68,12 +69,17 @@ const routes = [
   { path: "/setup-2fa",       name: "Setup2FA",       component: () => import("../views/Auth/Verify2FA.vue"), meta: { public: true } },
 
   { path: "/",                component: HomeView },
+  { path: "/admin",           redirect: "/admin-dashboard" },
+  { path: "/partner",         redirect: "/partner-dashboard" },
   { path: "/partner/:id",     component: PartnerDetails },
 
   { path: "/questionnaire",   component: SubscriptionQuestionnaire, meta: { requiresAuth: true } },
   { path: "/results",         component: SubscriptionResults,       meta: { requiresAuth: true } },
 
   { path: "/dashboard",       component: UserDashboard,   meta: { requiresAuth: true } },
+  { path: "/profile",         name: "ProfileSettings", component: ProfileSettings, meta: { requiresAuth: true } },
+  { path: "/settings",        redirect: "/profile" },
+  { path: "/settings/security", redirect: { path: "/profile", query: { tab: "2fa" } } },
   { path: "/admin-dashboard", component: AdminDashboard,  meta: { requiresAuth: true, requiresAdmin: true } },
   { path: "/partner-dashboard", component: PartnerDashboard, meta: { requiresAuth: true, requiresPartner: true } },
 

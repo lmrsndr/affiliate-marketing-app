@@ -23,8 +23,8 @@ export default {
     const route  = useRoute();
 
     const user = ref(null);
-    const defaultAvatar =
-      "https://affiliate-marketing-app-api.onrender.com/user/profile-picture/generic_avatar.png";
+    const apiBase = (API.defaults.baseURL || "http://localhost:5000/api").replace(/\/+$/, "");
+    const defaultAvatar = `${apiBase}/user/profile-picture/generic_avatar.png`;
 
     // sanitize ?redirect= (internal paths only, not auth pages)
     function sanitizeRedirect(path) {

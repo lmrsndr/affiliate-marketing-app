@@ -94,6 +94,16 @@ router.post("/add",             roleMiddleware("admin"), async (req, res) => {
   if (await User.findOne({ email })) return res.status(400).json({ message: "User already exists" });
   const nu = new User({ name, email, password, role: r }); await nu.save(); res.status(201).json(nu);
 });
+router.patch("/:id",            roleMiddleware("admin"), async (req, res) => {
+  const allowed = ["name", "email", "role"];
+  const update = {};
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(req.body, key)) update[key] = req.body[key];
+  }
+  const u = await User.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+  if (!u) return res.status(404).json({ message: "User not found" });
+  res.json(u);
+});
 router.patch("/:id/suspend",    roleMiddleware("admin"), async (req, res) => {
   const u = await User.findById(req.params.id); if (!u) return res.status(404).json({ message: "User not found" });
   u.suspended = !u.suspended; await u.save(); res.json({ message: `User ${u.suspended ? "suspended" : "unsuspended"}` });

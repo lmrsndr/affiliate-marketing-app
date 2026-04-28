@@ -69,6 +69,10 @@ router.post("/scrape", requireVerified2FA, roleMiddleware("admin"), async (req, 
     res.json(data);
   } catch (err) {
     console.error("❌ Scraping error:", err);
+    const message = err?.message || "";
+    if (/url|hostname|ip address|allowed|resolved/i.test(message)) {
+      return res.status(400).json({ message });
+    }
     res.status(500).json({ message: "Failed to scrape website" });
   }
 });

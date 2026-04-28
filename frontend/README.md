@@ -1,70 +1,81 @@
-# Getting Started with Create React App
+# BundleBee Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Vue 3 frontend built with Vite. This is not a Create React App project.
 
-## Available Scripts
+## Environment
 
-In the project directory, you can run:
+Create a local environment file:
 
-### `npm start`
+```bash
+cp .env.example .env
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+For local backend development:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+VITE_API_URL=http://localhost:5000/api
+```
 
-### `npm test`
+For production, set `VITE_API_URL` before building. It must point at the deployed backend API root, including `/api`:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+VITE_API_URL=https://api.example.com/api
+```
 
-### `npm run build`
+## Install
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+From the repository root:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm --prefix frontend ci
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Or from this directory:
 
-### `npm run eject`
+```bash
+npm ci
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Development
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+From the repository root:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm --prefix frontend run dev
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Default Vite dev URL: `http://localhost:5173`.
 
-## Learn More
+## Build
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+From the repository root:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+npm --prefix frontend run build
+```
 
-### Code Splitting
+Build output: `frontend/dist/`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Preview Production Build
 
-### Analyzing the Bundle Size
+```bash
+npm --prefix frontend run preview
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Deployment
 
-### Making a Progressive Web App
+Use this command for a production build:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```bash
+npm --prefix frontend run build
+```
 
-### Advanced Configuration
+Deploy the contents of `frontend/dist/` as a static site. The backend is not bundled into the frontend; all API calls use `VITE_API_URL`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Production Checklist
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Set `VITE_API_URL` to the deployed backend API root, including `/api`.
+- Run `npm --prefix frontend ci`.
+- Run `npm --prefix frontend run build`.
+- Deploy `frontend/dist/`.
+- Confirm the deployed frontend can reach the backend health/API routes.

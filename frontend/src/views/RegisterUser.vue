@@ -20,7 +20,7 @@ const successText = ref("");
 /* ────────────────────────────────────────────────────────────
    Derived: OAuth start URL (drop trailing /api from VITE_API_URL)
 ──────────────────────────────────────────────────────────── */
-const apiBase = (import.meta.env.VITE_API_URL || "https://api.bundlebee.co.uk/api").replace(/\/+$/, "");
+const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/+$/, "");
 const oauthBase = apiBase.replace(/\/api$/i, "");
 const googleOAuthHref = `${oauthBase}/auth/google`;
 

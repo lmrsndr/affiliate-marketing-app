@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { attachUserFromClaims } = require("./authUser");
 
 module.exports = async function attachUserIfPresent(req, res, next) {
   const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
@@ -12,10 +12,8 @@ module.exports = async function attachUserIfPresent(req, res, next) {
   if (authCookie) {
     try {
       const payload = jwt.verify(authCookie, JWT_SECRET);
-      req.auth = { ...payload, isAuthenticated: true, source: "auth" };
-      if (payload?.id) {
-        res.locals.user = await User.findById(payload.id).lean();
-      }
+      const { user } = await attachUserFromClaims(req, payload, "auth");
+      res.locals.user = user || null;
       return next();
     } catch (e) {
       // fall through to refresh
@@ -26,10 +24,10 @@ module.exports = async function attachUserIfPresent(req, res, next) {
   if (refreshCookie) {
     try {
       const payload = jwt.verify(refreshCookie, JWT_REFRESH_SECRET);
-      req.auth = { ...payload, isAuthenticated: !!payload.mfaVerified, source: "refresh" };
-      if (payload?.id) {
-        res.locals.user = await User.findById(payload.id).lean();
-      }
+      const { user } = await attachUserFromClaims(req, payload, "refresh", {
+        isAuthenticated: !!payload.mfaVerified,
+      });
+      res.locals.user = user || null;
       return next();
     } catch (e) {
       // invalid refresh → unauthenticated

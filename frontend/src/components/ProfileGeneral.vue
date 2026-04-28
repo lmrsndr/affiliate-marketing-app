@@ -43,11 +43,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useUserStore } from '@/stores/user'
 import api from '@/api'
 
-const userStore = useUserStore()
-const user = userStore.user
+const user = ref({})
 const form = ref({
   displayName: '',
   bio: '',
@@ -55,10 +53,14 @@ const form = ref({
 
 const loading = ref(false)
 
-onMounted(() => {
-  if (user) {
-    form.value.displayName = user.displayName || ''
-    form.value.bio = user.bio || ''
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/user/profile')
+    user.value = data || {}
+    form.value.displayName = user.value.displayName || user.value.name || ''
+    form.value.bio = user.value.bio || ''
+  } catch (err) {
+    console.error('Failed to load profile:', err)
   }
 })
 
@@ -66,7 +68,7 @@ const handleSave = async () => {
   loading.value = true
   try {
     const { data } = await api.put('/user/profile', form.value)
-    userStore.setUser(data.user)
+    user.value = data.user || user.value
     alert('Profile updated successfully!')
   } catch (err) {
     console.error(err)

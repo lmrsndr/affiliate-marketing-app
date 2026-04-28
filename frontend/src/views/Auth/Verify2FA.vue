@@ -46,7 +46,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import API from '../../api.js'; // uses VITE_API_BASE_URL
+import API from '../../api.js'; // uses VITE_API_URL
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -81,9 +81,9 @@ async function verify() {
     const { data } = await API.get('/auth/status');
     if (data?.isAuthenticated && data?.user?.twoFAVerified) {
       const role = data.user.role;
-      if (role === 'admin') return router.replace('/admin');
-      if (role === 'partner') return router.replace('/partner');
-      return router.replace('/');
+      if (role === 'admin') return router.replace('/admin-dashboard');
+      if (role === 'partner') return router.replace('/partner-dashboard');
+      return router.replace('/dashboard');
     }
     verifyErr.value = 'Verification succeeded but session not ready. Try reloading the page.';
   } catch (err) {

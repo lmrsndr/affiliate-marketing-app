@@ -57,7 +57,7 @@ const cooldownPercent = computed(() => Math.max(0, (cooldown.value / 60) * 100))
 
 const refreshToken = async () => {
   try {
-    await API.get("/auth/refresh", { withCredentials: true });
+    await API.post("/auth/refresh", {}, { withCredentials: true });
   } catch (err) {
     console.error("❌ Token refresh failed:", err);
   }

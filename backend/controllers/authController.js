@@ -371,9 +371,13 @@ exports.getUserProfile = async (req, res) => {
 ========================= */
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
+  const genericResponse = { message: "If an account exists for that email, a reset link has been sent." };
   try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail) return res.status(200).json(genericResponse);
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) return res.status(200).json(genericResponse);
 
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
@@ -381,18 +385,18 @@ exports.forgotPassword = async (req, res) => {
     user.resetTokenExpires = Date.now() + 3600000;
     await user.save();
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}&email=${email}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(cleanEmail)}`;
     await sendEmail({
-      to: email,
+      to: cleanEmail,
       subject: "Reset your BundleBee password",
       html: `<p>Click <a href='${resetUrl}'>here</a> to reset your password. This link expires in 1 hour.</p>`
     });
 
-    logger.info(`🔒 Password reset token issued for ${email}`);
-    res.status(200).json({ message: "Reset link sent to email" });
+    logger.info(`🔒 Password reset token issued for ${cleanEmail}`);
+    res.status(200).json(genericResponse);
   } catch (err) {
     logger.error("Forgot password error:", err);
-    res.status(500).json({ message: "Failed to send reset email" });
+    res.status(200).json(genericResponse);
   }
 };
 
@@ -401,7 +405,7 @@ exports.resetPassword = async (req, res) => {
   try {
     if (!token || !email || !newPassword) return res.status(400).json({ message: "Missing required fields" });
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+resetToken +resetTokenExpires");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");

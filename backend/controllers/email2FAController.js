@@ -72,6 +72,11 @@ function hash6(code) {
 function newCode() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
 }
+async function load2FAUser(req) {
+  const id = req.user?._id || req.user?.id;
+  if (!id) return null;
+  return User.findById(id).select("+email2FA.code +email2FA.expiresAt");
+}
 async function send2faEmail(user, code) {
   const firstName = user.firstName || user.name?.split(" ")?.[0] || "there";
   await sendEmail({
@@ -103,7 +108,7 @@ async function send2faEmail(user, code) {
 // Respects a short resend cooldown; on cooldown we still return 200 with a notice.
 exports.sendEmail2FACode = async (req, res) => {
   try {
-    const user = req.user; // provided by otpOrRefresh / attachUserIfPresent
+    const user = await load2FAUser(req);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     ensure2faObj(user);
@@ -174,7 +179,7 @@ exports.sendEmail2FACode = async (req, res) => {
 
 exports.resendEmail2FACode = async (req, res) => {
   try {
-    const user = req.user;
+    const user = await load2FAUser(req);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     ensure2faObj(user);
@@ -231,7 +236,7 @@ exports.resendEmail2FACode = async (req, res) => {
 exports.verifyEmail2FACode = async (req, res) => {
   const { code, trustThisDevice } = req.body || {};
   try {
-    const user = req.user;
+    const user = await load2FAUser(req);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     if (!user.email2FA) {

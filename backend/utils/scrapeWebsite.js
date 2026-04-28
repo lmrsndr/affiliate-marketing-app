@@ -1,10 +1,19 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 const puppeteer = require("puppeteer");
+const { assertSafeUrl } = require("./urlSafety");
+
+const SCRAPE_TIMEOUT_MS = 8000;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 
 async function cheerioScrape(url) {
   try {
     const response = await axios.get(url, {
+      maxContentLength: MAX_RESPONSE_BYTES,
+      maxBodyLength: MAX_RESPONSE_BYTES,
+      maxRedirects: 0,
+      responseType: "text",
+      timeout: SCRAPE_TIMEOUT_MS,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/110.0.0.0 Safari/537.36",
@@ -41,7 +50,17 @@ async function puppeteerScrape(url) {
   try {
     browser = await puppeteer.launch({ headless: "new" });
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.setRequestInterception(true);
+    page.on("request", async (request) => {
+      try {
+        if (request.resourceType() !== "document") return request.abort();
+        await assertSafeUrl(request.url());
+        return request.continue();
+      } catch {
+        return request.abort();
+      }
+    });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: SCRAPE_TIMEOUT_MS });
 
     const result = await page.evaluate(() => {
       const getMeta = (selector, attr) =>
@@ -78,7 +97,8 @@ async function puppeteerScrape(url) {
 }
 
 async function scrapeWebsiteMetadata(url) {
-  const cheerioData = await cheerioScrape(url);
+  const safeUrl = await assertSafeUrl(url);
+  const cheerioData = await cheerioScrape(safeUrl);
 
   if (cheerioData) {
     console.log("✅ Scraped using Cheerio");
@@ -86,7 +106,7 @@ async function scrapeWebsiteMetadata(url) {
   }
 
   console.log("⚠️ Falling back to Puppeteer...");
-  const puppeteerData = await puppeteerScrape(url);
+  const puppeteerData = await puppeteerScrape(safeUrl);
 
   return puppeteerData;
 }
