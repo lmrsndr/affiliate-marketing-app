@@ -1,33 +1,67 @@
 const jwt = require("jsonwebtoken");
 const { attachUserFromClaims } = require("./authUser");
+const { authenticateAccessToken } = require("../services/supabaseAuth");
 
 /**
- * Post-MFA gate.
+ * Transitional post-MFA gate.
  *
- * A request is accepted only when:
- * 1. a valid access or refresh token exists;
- * 2. that token was issued with mfaVerified=true; and
- * 3. the current user record still has an MFA method enabled.
- *
- * The third check immediately invalidates historical tokens that were
- * incorrectly issued as MFA-verified before an administrator configured 2FA.
+ * Supabase Auth is checked first whenever a Bearer token is supplied. Existing
+ * BundleBee cookie/JWT sessions remain available temporarily as a rollback
+ * path until the Supabase migration has been proven in production.
  */
 module.exports = async (req, res, next) => {
-  const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
+  const bearer = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
 
+  if (bearer) {
+    try {
+      const session = await authenticateAccessToken(bearer);
+      if (session.role !== "admin") {
+        return res.status(403).json({ message: "Administrator access only", reason: "ADMIN_REQUIRED" });
+      }
+      if (session.aal !== "aal2") {
+        return res.status(403).json({ message: "Authenticator verification required", reason: "MFA_AAL2_REQUIRED" });
+      }
+
+      req.supabase = { ...session, accessToken: bearer };
+      req.user = {
+        id: session.user.id,
+        _id: session.user.id,
+        email: session.user.email,
+        name: session.user.user_metadata?.name || session.user.email,
+        role: "admin",
+      };
+      req.auth = {
+        ...(req.auth || {}),
+        isAuthenticated: true,
+        mfaVerified: true,
+        source: "supabase",
+      };
+      return next();
+    } catch (error) {
+      if (error.status && error.status !== 401) {
+        return res.status(error.status).json({
+          message: error.message || "Supabase authentication failed",
+          reason: "SUPABASE_AUTH_FAILED",
+        });
+      }
+      // Invalid Supabase bearer tokens must not be reinterpreted as legacy JWTs.
+      return res.status(401).json({ message: "Supabase authentication required", reason: "SUPABASE_AUTH_REQUIRED" });
+    }
+  }
+
+  const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
   let claims = req.auth?.claims || null;
   let mfaVerified = Boolean(req.auth?.mfaVerified);
   let source = req.auth?.source || null;
 
   if (!claims) {
     try {
-      const bearer = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-      const access = req.cookies?.authCookie || bearer || "";
+      const access = req.cookies?.authCookie || "";
       if (access) {
         const decoded = jwt.verify(access, JWT_SECRET);
         claims = decoded;
         mfaVerified = Boolean(decoded.mfaVerified);
-        source = bearer ? "authorization" : "auth";
+        source = "auth";
       }
     } catch {
       claims = null;
