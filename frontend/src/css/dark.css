@@ -1,25 +1,125 @@
-/* frontend/src/assets/css/dark.css */
-/* Apply by adding class="theme-dark" on <html> or <body> */
-
+/* Dark theme applied to the root <html> element. */
 .theme-dark {
-  --bb-bg: #0F0F0F;
-  --bb-surface: #121212;
-  --bb-text: #E5F3E8;
-  --bb-muted: #B6D0C2;
-
-  --bb-border: #17321F;
-
-  /* brand colors unchanged; they read well on dark */
-  --bb-primary-dark: #1E7C34;
-  --bb-primary-light: #6BE26B;
-  --bb-accent: #FFD84D;
-
-  /* darker, softer shadows for dark surfaces */
-  --bb-shadow-sm: 0 1px 2px rgba(0,0,0,.40);
-  --bb-shadow-md: 0 10px 28px rgba(0,0,0,.45);
+  --bb-bg: #090c0a;
+  --bb-surface: #101511;
+  --bb-surface-2: #172019;
+  --bb-text: #f4faf5;
+  --bb-muted: #c6d5c9;
+  --bb-border: #36513c;
+  --bb-primary-dark: #64d97b;
+  --bb-primary-light: #a7f0b4;
+  --bb-accent: #ffe46b;
+  --bb-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.55);
+  --bb-shadow-md: 0 14px 34px rgba(0, 0, 0, 0.62);
 }
 
-/* optional: dark-only utilities */
 .theme-dark .bb-card.elevated {
-  box-shadow: 0 16px 40px rgba(0,0,0,.55);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.68);
+}
+
+/* HomeView uses scoped component CSS, so these deliberately high-specificity
+   global overrides ensure dark mode wins over its light-mode declarations. */
+.theme-dark body,
+.theme-dark #app,
+.theme-dark .bb-main,
+.theme-dark .shop-home {
+  background: var(--bb-bg) !important;
+  color: var(--bb-text) !important;
+}
+
+.theme-dark .shop-home .hero {
+  background: linear-gradient(135deg, #16251a 0%, #101a13 52%, #1d2b20 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.48) !important;
+}
+
+.theme-dark .shop-home .hero h1,
+.theme-dark .shop-home .hero h2,
+.theme-dark .shop-home .hero li,
+.theme-dark .shop-home .section-heading h2,
+.theme-dark .shop-home .product-body h3,
+.theme-dark .shop-home .steps h3,
+.theme-dark .shop-home .disclosure h2 {
+  color: #ffffff !important;
+}
+
+.theme-dark .shop-home .hero-text,
+.theme-dark .shop-home .description,
+.theme-dark .shop-home .steps article p,
+.theme-dark .shop-home .result-count,
+.theme-dark .shop-home .product-meta,
+.theme-dark .shop-home .collection-card span:last-child {
+  color: #d7e3d9 !important;
+}
+
+.theme-dark .shop-home .eyebrow,
+.theme-dark .shop-home .brand-name {
+  color: #9ee8aa !important;
+}
+
+.theme-dark .shop-home .hero-card,
+.theme-dark .shop-home .collection-card,
+.theme-dark .shop-home .steps article,
+.theme-dark .shop-home .product-card,
+.theme-dark .shop-home .state-card {
+  background: #151c17 !important;
+  color: #f7fbf7 !important;
+  border-color: #3b5841 !important;
+}
+
+.theme-dark .shop-home .filters {
+  background: #121914 !important;
+  border: 1px solid #3b5841 !important;
+}
+
+.theme-dark .shop-home .filters label {
+  color: #eef7ef !important;
+}
+
+.theme-dark .shop-home .filters input,
+.theme-dark .shop-home .filters select {
+  background: #0b100c !important;
+  color: #ffffff !important;
+  border-color: #52705a !important;
+}
+
+.theme-dark .shop-home .filters input::placeholder {
+  color: #aebdb1 !important;
+  opacity: 1;
+}
+
+.theme-dark .shop-home .image-wrap {
+  background: #0d120e !important;
+}
+
+.theme-dark .shop-home .product-meta strong {
+  color: #ffffff !important;
+}
+
+.theme-dark .shop-home .btn-primary {
+  background: #6ee287 !important;
+  color: #061008 !important;
+  border-color: #6ee287 !important;
+}
+
+.theme-dark .shop-home .btn-secondary {
+  background: #18221a !important;
+  color: #ffffff !important;
+  border-color: #6b8d72 !important;
+}
+
+.theme-dark .shop-home .disclosure {
+  background: #282411 !important;
+  color: #fff8cf !important;
+  border-color: #7a6d2d !important;
+}
+
+.theme-dark .shop-home .disclosure p {
+  color: #f5edc4 !important;
+}
+
+.theme-dark .shop-home .state-error {
+  background: #321717 !important;
+  color: #ffdada !important;
+  border-color: #8f4545 !important;
 }
