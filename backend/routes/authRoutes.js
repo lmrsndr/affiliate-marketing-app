@@ -3,60 +3,40 @@ const jwt = require("jsonwebtoken");
 const attachUserIfPresent = require("../middleware/attachUserIfPresent");
 const requireVerified2FA = require("../middleware/requireVerified2FA");
 const authController = require("../controllers/authController");
+const runtime = require("../config/runtime");
+const { authCookieOptions } = require("../config/http");
 
 const router = express.Router();
-
-const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
-const IS_PROD = process.env.NODE_ENV === "production";
 
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
 router.post("/forgot-username", authController.forgotUsername);
 router.post("/trust-device", requireVerified2FA, authController.trustThisDevice);
 
-/* ──────────────────────────────────────────────────────────────
-   Helpers
-────────────────────────────────────────────────────────────── */
-function getCookieBaseDomain(req) {
-  const envDom = process.env.COOKIE_DOMAIN;
-  if (envDom && envDom.trim()) return envDom.trim();
-  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toLowerCase();
-  if (host.endsWith(".bundlebee.co.uk") || host === "bundlebee.co.uk") return ".bundlebee.co.uk";
-  return undefined;
-}
-
-/* ──────────────────────────────────────────────────────────────
-   Debug: confirm cookies arrive
-────────────────────────────────────────────────────────────── */
-if (!IS_PROD) {
+if (!runtime.isProduction) {
   router.get("/debug/cookies", (req, res) => {
     res.json({
       ok: true,
       saw: {
-        hasAuth: !!(req.cookies && req.cookies.authCookie),
-        hasRefresh: !!(req.cookies && req.cookies.refreshCookie),
+        hasAuth: Boolean(req.cookies?.authCookie),
+        hasRefresh: Boolean(req.cookies?.refreshCookie),
       },
-      host: req.headers["host"],
-      xfh: req.headers["x-forwarded-host"] || null,
+      host: req.headers.host,
+      xForwardedHost: req.headers["x-forwarded-host"] || null,
     });
   });
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Status: reports auth + user; optionally includes a short token
-────────────────────────────────────────────────────────────── */
 router.get("/status", attachUserIfPresent, (req, res) => {
   const user = req.user || res.locals.user || null;
-  const mfaVerified = !!(req.auth && req.auth.mfaVerified);
-  const isAuthenticated =
-    !!user || !!(req.auth && req.auth.isAuthenticated); // expose for older guards
+  const mfaVerified = Boolean(req.auth?.mfaVerified);
+  const isAuthenticated = Boolean(user || req.auth?.isAuthenticated);
 
-  // Optional short-lived access token for clients that still expect one
   let accessToken = null;
   if (isAuthenticated && mfaVerified && user?._id) {
     accessToken = jwt.sign(
       { id: user._id, role: user.role, mfaVerified: true },
-      JWT_SECRET,
+      runtime.jwtSecret,
       { expiresIn: "10m" }
     );
   }
@@ -66,20 +46,15 @@ router.get("/status", attachUserIfPresent, (req, res) => {
     user,
     isAuthenticated,
     mfaVerified,
-    accessToken, // may be null; cookies remain source of truth
+    accessToken,
     source: req.auth?.source || null,
-    where: "routes",
   });
 });
 
-/* ──────────────────────────────────────────────────────────────
-   Next step helper for the UI
-────────────────────────────────────────────────────────────── */
 router.get("/next", attachUserIfPresent, (req, res) => {
-  const mfaVerified = !!(req.auth && req.auth.mfaVerified);
-  if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: "login", where: "routes" });
-  if (!mfaVerified) return res.json({ ok: true, next: "verify-2fa", where: "routes" });
-  return res.json({ ok: true, next: "dashboard", where: "routes" });
+  if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: "login" });
+  if (!req.auth?.mfaVerified) return res.json({ ok: true, next: "verify-2fa" });
+  return res.json({ ok: true, next: "dashboard" });
 });
 
 router.get("/enabled-views", attachUserIfPresent, (req, res) => {
@@ -88,70 +63,50 @@ router.get("/enabled-views", attachUserIfPresent, (req, res) => {
   }
 
   const enabledViews = [];
-  if (req.user.role === "admin") {
-    enabledViews.push("manage-affiliates", "admin-dashboard", "admin-accounting");
-  }
-  if (req.user.role === "partner") {
-    enabledViews.push("partner-dashboard", "partner-invoices");
-  }
-
+  if (req.user.role === "admin") enabledViews.push("shopping-admin");
   return res.json({ ok: true, enabledViews });
 });
 
-/* ──────────────────────────────────────────────────────────────
-   Refresh: rotate access cookie (and return token for clients)
-   Expects a valid refreshCookie with mfaVerified=true
-────────────────────────────────────────────────────────────── */
 router.post("/refresh", (req, res) => {
   try {
     const refresh = req.cookies?.refreshCookie;
-    if (!refresh) return res.status(401).json({ ok: false, reason: "no_refresh", message: "no_refresh" });
+    if (!refresh) {
+      return res.status(401).json({ ok: false, reason: "no_refresh", message: "No refresh session" });
+    }
 
-    const payload = jwt.verify(refresh, JWT_REFRESH_SECRET);
+    const payload = jwt.verify(refresh, runtime.jwtRefreshSecret);
     if (!payload?.mfaVerified) {
-      return res.status(403).json({ ok: false, reason: "mfa_not_verified", message: "mfa_not_verified" });
+      return res.status(403).json({ ok: false, reason: "mfa_not_verified", message: "MFA is required" });
     }
 
     const accessToken = jwt.sign(
       { id: payload.id, role: payload.role, mfaVerified: true },
-      JWT_SECRET,
+      runtime.jwtSecret,
       { expiresIn: "15m" }
     );
 
-    const opts = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      domain: getCookieBaseDomain(req),
-      path: "/",
-      maxAge: 15 * 60 * 1000,
-    };
-
-    res.cookie("authCookie", accessToken, opts);
-    // Return token as well for any legacy header-token flows (optional for you)
+    res.cookie("authCookie", accessToken, authCookieOptions(req, { maxAge: 15 * 60 * 1000 }));
     return res.json({ ok: true, accessToken });
-  } catch (e) {
-    console.error("refresh error:", e?.message || e);
-    return res.status(401).json({ ok: false, reason: "invalid_refresh", message: "invalid_refresh" });
+  } catch (error) {
+    console.error("Token refresh failed:", error.message);
+    return res.status(401).json({ ok: false, reason: "invalid_refresh", message: "Refresh session is invalid" });
   }
 });
 
-/* ──────────────────────────────────────────────────────────────
-   Logout via API path (clears cookies)
-────────────────────────────────────────────────────────────── */
 router.get("/logout", (req, res) => {
-  const cookieOpts = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "None",
-    domain: getCookieBaseDomain(req),
-    path: "/",
-  };
-  try {
-    res.clearCookie("authCookie", cookieOpts);
-    res.clearCookie("refreshCookie", cookieOpts);
-  } catch (_) {}
-  return res.json({ ok: true, message: "✅ Logged out" });
+  const options = authCookieOptions(req);
+  res.clearCookie("authCookie", options);
+  res.clearCookie("refreshCookie", options);
+  res.clearCookie("otpTicket", options);
+
+  if (typeof req.logout === "function") {
+    return req.logout((error) => {
+      if (error) return res.status(500).json({ ok: false, message: "Logout failed" });
+      return res.json({ ok: true, message: "Logged out" });
+    });
+  }
+
+  return res.json({ ok: true, message: "Logged out" });
 });
 
 module.exports = router;
