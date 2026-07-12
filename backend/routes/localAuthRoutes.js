@@ -35,65 +35,45 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Administrator access only" });
     }
 
-    const twoFAEnabled = !!(user.twoFA?.enabled || user.email2FA?.enabled);
-
-    if (twoFAEnabled) {
-      res.clearCookie("authCookie", authCookieOptions(req));
-      res.clearCookie("refreshCookie", authCookieOptions(req));
-
-      await User.updateOne(
-        { _id: user._id },
-        { $set: { "email2FA.verified": false } }
-      ).catch((error) => console.warn("email2FA reset failed:", error?.message || error));
-
-      const preRefresh = jwt.sign(
-        { id: user._id, role: user.role, mfaVerified: false, purpose: "pre2fa" },
-        JWT_REFRESH_SECRET,
-        { expiresIn: "30m" }
-      );
-      res.cookie(
-        "refreshCookie",
-        preRefresh,
-        authCookieOptions(req, { maxAge: 30 * 60 * 1000 })
-      );
-
-      const otpTicket = jwt.sign(
-        { sub: String(user._id), purpose: "otp" },
-        JWT_OTP_SECRET || JWT_SECRET,
-        { expiresIn: 300 }
-      );
-      res.cookie(
-        "otpTicket",
-        otpTicket,
-        authCookieOptions(req, { maxAge: 5 * 60 * 1000 })
-      );
-
-      return res.json({ ok: true, need2fa: true });
-    }
-
-    const accessToken = jwt.sign(
-      { id: user._id, email: user.email, role: user.role, mfaVerified: true },
-      JWT_SECRET,
-      { expiresIn: "15m" }
+    // Administrators must complete a fresh second-factor challenge on every login.
+    // Email 2FA is the mandatory fallback even when an authenticator is also configured.
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          "email2FA.enabled": true,
+          "email2FA.verified": false,
+          twoFAVerified: false,
+        },
+      }
     );
-    const refreshToken = jwt.sign(
-      { id: user._id, role: user.role, mfaVerified: true },
+
+    res.clearCookie("authCookie", authCookieOptions(req));
+    res.clearCookie("refreshCookie", authCookieOptions(req));
+
+    const preRefresh = jwt.sign(
+      { id: user._id, role: user.role, mfaVerified: false, purpose: "pre2fa" },
       JWT_REFRESH_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    res.cookie(
-      "authCookie",
-      accessToken,
-      authCookieOptions(req, { maxAge: 15 * 60 * 1000 })
+      { expiresIn: "30m" }
     );
     res.cookie(
       "refreshCookie",
-      refreshToken,
-      authCookieOptions(req, { maxAge: 7 * 24 * 60 * 60 * 1000 })
+      preRefresh,
+      authCookieOptions(req, { maxAge: 30 * 60 * 1000 })
     );
 
-    return res.json({ ok: true });
+    const otpTicket = jwt.sign(
+      { sub: String(user._id), purpose: "otp" },
+      JWT_OTP_SECRET || JWT_SECRET,
+      { expiresIn: 300 }
+    );
+    res.cookie(
+      "otpTicket",
+      otpTicket,
+      authCookieOptions(req, { maxAge: 5 * 60 * 1000 })
+    );
+
+    return res.json({ ok: true, need2fa: true, method: "email" });
   } catch (error) {
     console.error("local/login error:", error);
     return res.status(500).json({ ok: false, message: "server_error" });
