@@ -1,159 +1,73 @@
 <template>
-  <div class="login">
-    <h1>Admin Login</h1>
+  <section class="login-shell">
+    <div class="login-card">
+      <p class="eyebrow">BundleBee administration</p>
+      <h1>Admin sign in</h1>
+      <p class="intro">Sign in with the administrator account managed through Supabase Auth.</p>
 
-    <form @submit.prevent="submit">
-      <div class="field">
-        <label>Email</label>
-        <input v-model.trim="email" type="email" required autocomplete="username" />
-      </div>
+      <form @submit.prevent="submit">
+        <label>
+          <span>Email</span>
+          <input v-model.trim="email" type="email" required autocomplete="username" />
+        </label>
 
-      <div class="field">
-        <label>Password</label>
-        <input v-model="password" type="password" required autocomplete="current-password" />
-      </div>
+        <label>
+          <span>Password</span>
+          <input v-model="password" type="password" required autocomplete="current-password" />
+        </label>
 
-      <button type="submit" :disabled="loading">
-        <span v-if="loading">Logging in…</span>
-        <span v-else>Login</span>
-      </button>
+        <button class="primary" type="submit" :disabled="loading">
+          {{ loading ? 'Signing in…' : 'Sign in' }}
+        </button>
 
-      <p v-if="error" class="error">{{ error }}</p>
-    </form>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+      </form>
 
-    <div class="or">or</div>
-
-    <!-- FULL-PAGE NAV to backend OAuth start -->
-    <button class="google" @click="loginWithGoogle" :disabled="loading">
-      Login with Google
-    </button>
-
-    <details class="debug">
-      <summary>Debug</summary>
-      <div>
-        <div><b>API_BASE:</b> {{ API_BASE }}</div>
-        <div><b>OAUTH_BASE:</b> {{ OAUTH_BASE }}</div>
-        <pre>{{ lastResponse }}</pre>
-      </div>
-    </details>
-  </div>
+      <p class="note">Authenticator-app verification is required before the admin area opens.</p>
+    </div>
+  </section>
 </template>
 
 <script setup>
-import { ref } from "vue";
-import API from "@/api"; // your axios instance with baseURL ending in /api and withCredentials: true
+import { ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { getBackendSupabaseSession } from '@/api';
+import { signInWithPassword, signOutSupabase } from '@/supabaseAuth';
 
-const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/+$/, "");
-const OAUTH_BASE = API_BASE.replace(/\/api$/, "");
-
-const email = ref("");
-const password = ref("");
+const route = useRoute();
+const email = ref('');
+const password = ref('');
 const loading = ref(false);
-const error = ref("");
-const lastResponse = ref("");
+const error = ref('');
+
+function safeRedirect(value) {
+  const path = String(value || '');
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/admin';
+}
 
 async function submit() {
-  error.value = "";
-  lastResponse.value = "";
   loading.value = true;
+  error.value = '';
 
   try {
-    // NOTE: baseURL already ends with /api → path MUST NOT start with /api
-    const { data } = await API.post("/auth/local/login", {
-      email: email.value,
-      password: password.value,
-    });
+    await signInWithPassword(email.value, password.value);
+    const session = await getBackendSupabaseSession();
 
-    lastResponse.value = JSON.stringify(data, null, 2);
-
-    // Pre-2FA flow
-    if (data?.need2fa) {
-      window.location.assign("/verify-2fa");
-      return;
+    if (!session?.isAdmin) {
+      await signOutSupabase();
+      throw new Error('This Supabase account is not a BundleBee administrator.');
     }
 
-    // Logged in (cookies set) → pick a sensible landing page
-    // If you have /auth/next available, you can use it here instead.
-    window.location.assign("/admin-dashboard");
-  } catch (e) {
-    const msg =
-      e?.response?.data?.message ||
-      e?.response?.data?.error ||
-      e?.message ||
-      "Login failed";
-    error.value = msg === "Invalid credentials" ? "Invalid credentials" : msg;
+    const destination = safeRedirect(route.query.redirect);
+    window.location.assign(session.aal === 'aal2' ? destination : `/mfa?redirect=${encodeURIComponent(destination)}`);
+  } catch (err) {
+    error.value = err?.response?.data?.message || err?.message || 'Sign in failed.';
   } finally {
     loading.value = false;
   }
 }
-
-function loginWithGoogle() {
-  // IMPORTANT: must be a full page navigation to the API domain
-  window.location.assign(`${OAUTH_BASE}/auth/google`);
-}
 </script>
 
 <style scoped>
-.login {
-  max-width: 420px;
-  margin: 2rem auto;
-  padding: 1.25rem 1.5rem;
-  border-radius: 14px;
-  background: #0d0f10;
-  color: #e8ecef;
-  box-shadow: 0 8px 28px rgba(0,0,0,.25);
-}
-h1 {
-  margin: 0 0 1rem;
-  font-size: 1.6rem;
-  font-weight: 700;
-}
-.field { margin-bottom: .9rem; }
-label { display: block; font-size: .9rem; margin-bottom: .35rem; opacity: .9; }
-input {
-  width: 100%;
-  padding: .6rem .7rem;
-  border-radius: 8px;
-  border: 1px solid #2a2f33;
-  background: #101316;
-  color: #e8ecef;
-  outline: none;
-}
-input:focus { border-color: #3aa265; }
-button {
-  width: 100%;
-  padding: .7rem .9rem;
-  border-radius: 8px;
-  border: 1px solid #2a2f33;
-  background: #1a2125;
-  color: #e8ecef;
-  cursor: pointer;
-}
-button[disabled] { opacity: .6; cursor: not-allowed; }
-.error { color: #ff6b6b; margin-top: .6rem; }
-
-.or {
-  text-align: center;
-  opacity: .7;
-  margin: 1rem 0 .7rem;
-}
-
-button.google {
-  background: #ffffff;
-  color: #111;
-  border: 1px solid #d0d5d9;
-}
-
-details.debug {
-  margin-top: 1rem;
-  border: 1px dashed #3a3f44;
-  padding: .6rem .7rem;
-  border-radius: 8px;
-}
-details.debug pre {
-  white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: .85rem;
-  margin-top: .4rem;
-}
+.login-shell{display:grid;place-items:center;min-height:62vh;padding:2rem 1rem}.login-card{width:min(440px,100%);box-sizing:border-box;padding:1.5rem;border:1px solid var(--bb-border);border-radius:18px;background:var(--bb-surface);box-shadow:var(--bb-shadow-md);text-align:left}.eyebrow{margin:0 0 .45rem;color:var(--bb-primary-light);font-size:.78rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}.intro,.note{color:var(--bb-muted);line-height:1.5}.note{margin:1rem 0 0;font-size:.9rem}.login-card form{display:grid;gap:1rem;margin-top:1.25rem}.login-card label{display:grid;gap:.4rem;font-weight:700}.login-card input{width:100%;box-sizing:border-box;padding:.75rem;border:1px solid var(--bb-border);border-radius:10px;background:var(--bb-bg);color:var(--bb-text);font:inherit}.primary{min-height:46px;border:0;border-radius:10px;background:var(--bb-primary-dark);color:white;font:inherit;font-weight:800;cursor:pointer}.primary:disabled{opacity:.65;cursor:wait}.error{margin:0;color:#ff7070;font-weight:700}
 </style>
