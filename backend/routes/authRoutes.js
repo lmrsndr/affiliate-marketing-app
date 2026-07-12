@@ -6,6 +6,7 @@ const authController = require("../controllers/authController");
 const runtime = require("../config/runtime");
 const { authCookieOptions } = require("../config/http");
 const User = require("../models/User");
+const { authenticateAccessToken } = require("../services/supabaseAuth");
 
 const router = express.Router();
 
@@ -32,7 +33,37 @@ function userHasEnabledMfa(user) {
   return Boolean(user?.twoFA?.enabled || user?.email2FA?.enabled);
 }
 
-router.get("/status", attachUserIfPresent, (req, res) => {
+router.get("/status", attachUserIfPresent, async (req, res) => {
+  const bearer = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (bearer) {
+    try {
+      const session = await authenticateAccessToken(bearer);
+      return res.json({
+        ok: true,
+        user: {
+          id: session.user.id,
+          _id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email,
+          role: session.role,
+        },
+        isAuthenticated: true,
+        mfaVerified: session.aal === "aal2",
+        accessToken: null,
+        source: "supabase",
+      });
+    } catch (error) {
+      return res.status(401).json({
+        ok: false,
+        user: null,
+        isAuthenticated: false,
+        mfaVerified: false,
+        accessToken: null,
+        source: "supabase",
+      });
+    }
+  }
+
   const user = req.user || res.locals.user || null;
   const isAuthenticated = Boolean(user || req.auth?.isAuthenticated);
   const mfaVerified = Boolean(req.auth?.mfaVerified && userHasEnabledMfa(user));
@@ -46,7 +77,7 @@ router.get("/status", attachUserIfPresent, (req, res) => {
     );
   }
 
-  res.json({
+  return res.json({
     ok: true,
     user,
     isAuthenticated,
