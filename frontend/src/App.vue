@@ -1,9 +1,14 @@
 <template>
   <div id="app">
     <header class="bb-header">
-      <h1 class="bb-title">bundlebee</h1>
+      <router-link to="/" class="bb-title" aria-label="BundleBee home">bundlebee</router-link>
 
-      <!-- Theme toggle -->
+      <nav class="bb-nav" aria-label="Main navigation">
+        <router-link to="/">Shop</router-link>
+        <a href="/#how-it-works">How it works</a>
+        <router-link to="/admin">Admin</router-link>
+      </nav>
+
       <button class="bb-btn bb-btn--ghost bb-toggle" @click="toggleTheme" :aria-pressed="isDark.toString()">
         <span v-if="isDark">☀️ Light</span>
         <span v-else>🌙 Dark</span>
@@ -14,10 +19,7 @@
       <router-view />
     </main>
 
-    <!-- ✅ Email 2FA Prompt (conditionally rendered) -->
     <Email2FAVerify v-if="showEmail2FA" />
-
-    <!-- ✅ App-Based 2FA Upgrade Prompt -->
     <Upgrade2FAPrompt />
   </div>
 </template>
@@ -28,139 +30,53 @@ import { computed, ref, onMounted } from "vue";
 import Email2FAVerify from "@/components/Email2FAVerify.vue";
 import Upgrade2FAPrompt from "@/components/Upgrade2FAPrompt.vue";
 
-/* ✅ Brand + Theme CSS (global design tokens & overrides) */
 import "@/css/brand.css";
 import "@/css/light.css";
 import "@/css/dark.css";
 
 export default {
   name: "App",
-  components: {
-    Email2FAVerify,
-    Upgrade2FAPrompt,
-  },
+  components: { Email2FAVerify, Upgrade2FAPrompt },
   setup() {
     const route = useRoute();
-
-    /* ------- 2FA visibility (kept from your version) ------- */
     const showEmail2FA = computed(() => {
-      const excludedRoutes = ["/verify-2fa", "/login", "/register"];
-      const sessionFlag = sessionStorage.getItem("awaiting2FA") === "true";
-      return sessionFlag && !excludedRoutes.includes(route.path);
+      const excludedRoutes = ["/verify-2fa", "/login"];
+      return sessionStorage.getItem("awaiting2FA") === "true" && !excludedRoutes.includes(route.path);
     });
 
-    /* ------- Theme state & helpers ------- */
-    const THEME_KEY = "bbTheme"; // 'light' | 'dark'
+    const THEME_KEY = "bbTheme";
     const isDark = ref(false);
-
-    const applyThemeClass = (mode) => {
-      const root = document.documentElement;
-      root.classList.remove("theme-light", "theme-dark");
-      root.classList.add(mode === "dark" ? "theme-dark" : "theme-light");
-    };
 
     const setTheme = (mode) => {
       isDark.value = mode === "dark";
       localStorage.setItem(THEME_KEY, mode);
-      applyThemeClass(mode);
+      document.documentElement.classList.remove("theme-light", "theme-dark");
+      document.documentElement.classList.add(mode === "dark" ? "theme-dark" : "theme-light");
     };
 
-    const toggleTheme = () => {
-      setTheme(isDark.value ? "light" : "dark");
-    };
+    const toggleTheme = () => setTheme(isDark.value ? "light" : "dark");
 
     onMounted(() => {
-      // 1) Use saved preference if any
       const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "light" || saved === "dark") {
-        setTheme(saved);
-        return;
-      }
-      // 2) Else respect OS preference on first load
-      const prefersDark =
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (saved === "light" || saved === "dark") return setTheme(saved);
+      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     });
 
-    return {
-      showEmail2FA,
-      isDark,
-      toggleTheme,
-      setTheme, // exported in case you want to use it elsewhere
-    };
+    return { showEmail2FA, isDark, toggleTheme };
   },
 };
 </script>
 
 <style>
-/* ----- Layout shell uses brand tokens (no hardcoded colors) ----- */
-
-/* App container */
-#app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-}
-
-/* Header */
-.bb-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  width: 100%;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--bb-border);
-  background: color-mix(in srgb, var(--bb-bg) 85%, transparent);
-  backdrop-filter: blur(6px);
-}
-
-/* Brand title */
-.bb-title {
-  margin: 0;
-  font-family: var(--bb-font-heading);
-  font-weight: 800;
-  letter-spacing: -0.3px;
-  /* Two-tone wordmark effect on text version (optional) */
-  background: linear-gradient(90deg, var(--bb-primary-dark) 0 55%, var(--bb-primary-light) 55% 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-transform: lowercase;
-}
-
-/* Theme toggle button (reuses brand button tokens) */
-.bb-toggle {
-  font-size: 0.95rem;
-  padding: .5rem .75rem;
-  border: 1px solid var(--bb-border);
-  border-radius: var(--bb-radius);
-}
-
-/* Main content area */
-.bb-main {
-  flex-grow: 1;
-  width: 100%;
-  max-width: 960px;
-  padding: 20px;
-  background: var(--bb-surface);
-  box-shadow: var(--bb-shadow-sm);
-  border-radius: var(--bb-radius);
-  margin-top: 20px;
-}
-
-/* Body text baseline (moved to variables) */
-body {
-  font-family: var(--bb-font-body);
-  margin: 0;
-  padding: 0;
-  background-color: var(--bb-bg);
-  color: var(--bb-text);
-  text-align: center;
-}
+#app { display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+.bb-header { position:sticky; top:0; z-index:40; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:1rem; width:100%; box-sizing:border-box; padding:12px 18px; border-bottom:1px solid var(--bb-border); background:color-mix(in srgb, var(--bb-bg) 88%, transparent); backdrop-filter:blur(8px); }
+.bb-title { margin:0; font-family:var(--bb-font-heading); font-size:1.45rem; font-weight:800; letter-spacing:-.3px; background:linear-gradient(90deg,var(--bb-primary-dark) 0 55%,var(--bb-primary-light) 55% 100%); -webkit-background-clip:text; background-clip:text; color:transparent; text-decoration:none; text-transform:lowercase; }
+.bb-nav { display:flex; justify-content:center; gap:1rem; }
+.bb-nav a { color:var(--bb-text); text-decoration:none; font-weight:650; }
+.bb-nav a:hover,.bb-nav a.router-link-active { color:var(--bb-primary-dark); }
+.bb-toggle { font-size:.9rem; padding:.5rem .75rem; border:1px solid var(--bb-border); border-radius:var(--bb-radius); }
+.bb-main { flex-grow:1; width:min(1180px,calc(100% - 28px)); box-sizing:border-box; padding:20px; background:var(--bb-surface); box-shadow:var(--bb-shadow-sm); border-radius:var(--bb-radius); margin:20px auto; }
+body { font-family:var(--bb-font-body); margin:0; padding:0; background-color:var(--bb-bg); color:var(--bb-text); }
+@media(max-width:680px){ .bb-header{grid-template-columns:1fr auto}.bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto}.bb-main{width:min(100% - 16px,1180px);padding:12px;margin:10px auto} }
 </style>
