@@ -86,7 +86,10 @@ app.get("/", (_req, res) => res.send("BundleBee API is reachable. Try /api/healt
 
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
-// Authentication and administrator security.
+// Supabase Auth is the new administrator identity/session authority.
+app.use("/api/supabase", require("./routes/supabaseAuthRoutes"));
+
+// Legacy authentication remains mounted temporarily as a rollback path.
 app.use("/auth", require("./routes/googleAuthRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/auth/local", require("./routes/localAuthRoutes"));
