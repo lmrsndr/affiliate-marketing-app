@@ -18,17 +18,11 @@
     <main class="bb-main">
       <router-view />
     </main>
-
-    <Email2FAVerify v-if="showEmail2FA" />
-    <Upgrade2FAPrompt />
   </div>
 </template>
 
 <script>
-import { useRoute } from "vue-router";
-import { computed, ref, onMounted } from "vue";
-import Email2FAVerify from "@/components/Email2FAVerify.vue";
-import Upgrade2FAPrompt from "@/components/Upgrade2FAPrompt.vue";
+import { ref, onMounted } from "vue";
 
 import "@/css/brand.css";
 import "@/css/light.css";
@@ -36,14 +30,7 @@ import "@/css/dark.css";
 
 export default {
   name: "App",
-  components: { Email2FAVerify, Upgrade2FAPrompt },
   setup() {
-    const route = useRoute();
-    const showEmail2FA = computed(() => {
-      const excludedRoutes = ["/verify-2fa", "/login"];
-      return sessionStorage.getItem("awaiting2FA") === "true" && !excludedRoutes.includes(route.path);
-    });
-
     const THEME_KEY = "bbTheme";
     const isDark = ref(false);
 
@@ -63,7 +50,7 @@ export default {
       setTheme(prefersDark ? "dark" : "light");
     });
 
-    return { showEmail2FA, isDark, toggleTheme };
+    return { isDark, toggleTheme };
   },
 };
 </script>
@@ -74,7 +61,7 @@ export default {
 .bb-title { margin:0; font-family:var(--bb-font-heading); font-size:1.45rem; font-weight:800; letter-spacing:-.3px; background:linear-gradient(90deg,var(--bb-primary-dark) 0 55%,var(--bb-primary-light) 55% 100%); -webkit-background-clip:text; background-clip:text; color:transparent; text-decoration:none; text-transform:lowercase; }
 .bb-nav { display:flex; justify-content:center; gap:1rem; }
 .bb-nav a { color:var(--bb-text); text-decoration:none; font-weight:650; }
-.bb-nav a:hover,.bb-nav a.router-link-active { color:var(--bb-primary-dark); }
+.bb-nav a:hover,.bb-nav a.router-link-active { color:var(--bb-primary-light); }
 .bb-toggle { font-size:.9rem; padding:.5rem .75rem; border:1px solid var(--bb-border); border-radius:var(--bb-radius); }
 .bb-main { flex-grow:1; width:min(1180px,calc(100% - 28px)); box-sizing:border-box; padding:20px; background:var(--bb-surface); box-shadow:var(--bb-shadow-sm); border-radius:var(--bb-radius); margin:20px auto; }
 body { font-family:var(--bb-font-body); margin:0; padding:0; background-color:var(--bb-bg); color:var(--bb-text); }
