@@ -7,6 +7,7 @@
         <router-link to="/">Shop</router-link>
         <a href="/#how-it-works">How it works</a>
         <router-link to="/admin">Admin</router-link>
+        <router-link v-if="isSignedIn" to="/admin/import-product">AI import</router-link>
       </nav>
 
       <div class="bb-actions">
