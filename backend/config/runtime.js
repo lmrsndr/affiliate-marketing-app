@@ -8,6 +8,9 @@ const required = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_REDIRECT_URI",
+  "SUPABASE_URL",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SECRET_KEY",
 ];
 
 for (const key of required) {
@@ -32,6 +35,9 @@ module.exports = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI,
+  supabaseUrl: process.env.SUPABASE_URL.replace(/\/+$/, ""),
+  supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+  supabaseSecretKey: process.env.SUPABASE_SECRET_KEY,
   frontendOrigin,
   cookieDomain: process.env.COOKIE_DOMAIN || "",
   cookieName: process.env.COOKIE_NAME || "sid",
