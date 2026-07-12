@@ -1,30 +1,23 @@
 const express = require("express");
 const helmet = require("helmet");
-const session = require("express-session");
-const MongoStore = require("connect-mongo");
-const cookieParser = require("cookie-parser");
 const compression = require("compression");
 const mongoose = require("mongoose");
 const path = require("path");
+const rateLimit = require("express-rate-limit");
 
 const runtime = require("./config/runtime");
-const passport = require("./config/passport");
 const { corsMiddleware } = require("./config/http");
 const assertCsp = require("./middleware/assertCsp");
-const { globalRateLimiter } = require("./controllers/authController");
 
 const app = express();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-
 app.use(corsMiddleware);
 app.options("*", corsMiddleware);
 app.use(compression());
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -45,32 +38,15 @@ app.use(
   })
 );
 app.use(assertCsp(runtime.nodeEnv));
-app.use(globalRateLimiter);
-
 app.use(
-  session({
-    store: MongoStore.create({
-      mongoUrl: runtime.mongoUri,
-      collectionName: "sessions",
-      ttl: 14 * 24 * 60 * 60,
-    }),
-    secret: runtime.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    name: runtime.cookieName,
-    cookie: {
-      maxAge: 14 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      secure: runtime.isProduction,
-      sameSite: runtime.isProduction ? "None" : "Lax",
-      domain: runtime.isProduction && runtime.cookieDomain ? runtime.cookieDomain : undefined,
-      path: "/",
-    },
+  rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    skip: (req) => ["GET", "HEAD", "OPTIONS"].includes(req.method),
+    standardHeaders: true,
+    legacyHeaders: false,
   })
 );
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 if (!runtime.isProduction) {
   app.get("/__bb/health", (_req, res) => res.json({ ok: true, environment: runtime.nodeEnv }));
@@ -86,15 +62,8 @@ app.get("/", (_req, res) => res.send("BundleBee API is reachable. Try /api/healt
 
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
-// Supabase Auth is the new administrator identity/session authority.
+// Supabase magic-link sessions are the sole administrator authentication path.
 app.use("/api/supabase", require("./routes/supabaseAuthRoutes"));
-
-// Legacy authentication remains mounted temporarily as a rollback path.
-app.use("/auth", require("./routes/googleAuthRoutes"));
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/auth/local", require("./routes/localAuthRoutes"));
-app.use("/api/2fa-email", require("./routes/email2FARoutes"));
-app.use("/api/2fa-app", require("./routes/totpRoutes"));
 app.use("/api/admin/users", require("./routes/adminUserRoutes"));
 
 // Active shopping platform plus temporary legacy catalogue compatibility.
@@ -110,7 +79,6 @@ app.use((error, _req, res, _next) => {
   if (error?.message?.startsWith("Origin is not allowed by CORS")) {
     return res.status(403).json({ message: "Origin is not allowed" });
   }
-
   console.error("Unhandled API error:", error);
   return res.status(500).json({ message: "Unexpected server error" });
 });
