@@ -20,12 +20,6 @@ function parseBoolean(value) {
   return String(value).toLowerCase() === "true";
 }
 
-function publicProductQuery() {
-  return Product.find({ active: true, publishedAt: { $ne: null } })
-    .populate("brand", "name slug website logoUrl description country independent smallBusiness")
-    .populate("categories", "name description imageUrl");
-}
-
 router.get("/products", async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -73,7 +67,14 @@ router.get("/products", async (req, res) => {
 
 router.get("/products/:slug", async (req, res) => {
   try {
-    const item = await publicProductQuery().findOne({ slug: req.params.slug });
+    const item = await Product.findOne({
+      slug: req.params.slug,
+      active: true,
+      publishedAt: { $ne: null },
+    })
+      .populate("brand", "name slug website logoUrl description country independent smallBusiness")
+      .populate("categories", "name description imageUrl");
+
     if (!item) return res.status(404).json({ message: "Product not found" });
     res.json(item);
   } catch (error) {
