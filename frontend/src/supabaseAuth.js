@@ -1,10 +1,28 @@
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-const SUPABASE_KEY = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "");
+const RAW_SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || "").trim();
+const SUPABASE_URL = (() => {
+  const value = RAW_SUPABASE_URL.replace(/\/+$/, "");
+  if (!value) return "";
+  if (/^https:\/\//i.test(value)) return value;
+  if (/^[a-z0-9-]+$/i.test(value)) return `https://${value}.supabase.co`;
+  return value;
+})();
+const SUPABASE_KEY = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "").trim();
 const SESSION_KEY = "bundlebee.supabase.session";
 
 function assertConfigured() {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Supabase authentication is not configured for this deployment.");
+  }
+
+  try {
+    const url = new URL(SUPABASE_URL);
+    if (url.protocol !== "https:" || !url.hostname.endsWith(".supabase.co")) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error(
+      "Invalid Supabase URL. Use https://YOUR_PROJECT_REF.supabase.co in Cloudflare VITE_SUPABASE_URL."
+    );
   }
 }
 
