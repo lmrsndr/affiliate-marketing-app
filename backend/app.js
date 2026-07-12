@@ -92,6 +92,7 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/auth/local", require("./routes/localAuthRoutes"));
 app.use("/api/2fa-email", require("./routes/email2FARoutes"));
 app.use("/api/2fa-app", require("./routes/totpRoutes"));
+app.use("/api/admin/users", require("./routes/adminUserRoutes"));
 
 // Active shopping platform plus temporary legacy catalogue compatibility.
 app.use("/api/boxes", require("./routes/boxRoutes"));
