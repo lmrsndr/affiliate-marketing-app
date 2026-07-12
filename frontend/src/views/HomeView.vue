@@ -1,587 +1,694 @@
 <template>
-  <div class="landing-page">
-    <!-- TRUSTED HERO SECTION -->
-    <section class="hero updated-hero">
-      <div class="hero-content">
-        <div class="hero-badge bb-badge">
-          <span aria-hidden="true">🛡</span> Trusted UK Subscriptions
-        </div>
-
-        <h1 class="hero-title">Trust What You Subscribe To</h1>
-        <p class="hero-subtitle">
-          BundleBee connects you with verified UK subscription brands — powered by real reviews,
-          curated rankings, and complete transparency.
+  <main class="shop-home">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Curated shopping, without the endless scrolling</p>
+        <h1>Interesting products from independent and specialist brands</h1>
+        <p class="hero-text">
+          BundleBee brings together useful, unusual and giftable finds from brands that are easy to
+          miss on the big shopping platforms.
         </p>
-
-        <div class="hero-cta">
-          <router-link to="/login" class="bb-btn bb-btn--primary" aria-label="Join BundleBee">
-            Join the Hive
-          </router-link>
-          <router-link to="/questionnaire" class="bb-btn bb-btn--ghost" aria-label="Find your matches">
-            Take the Match Quiz
-          </router-link>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#catalogue">Browse products</a>
+          <a class="btn btn-secondary" href="#how-it-works">How BundleBee works</a>
         </div>
+      </div>
 
-        <ul class="trust-points" aria-label="Trust points">
-          <li><span aria-hidden="true">✔</span> Verified Partners</li>
-          <li><span aria-hidden="true">⭐</span> Genuine Reviews</li>
-          <li><span aria-hidden="true">🔒</span> Secure, Ad-Free Discovery</li>
+      <div class="hero-card" aria-label="What we look for">
+        <span class="hero-icon" aria-hidden="true">🐝</span>
+        <h2>What makes the cut?</h2>
+        <ul>
+          <li>Genuinely useful or distinctive</li>
+          <li>Especially giftable</li>
+          <li>Harder to discover elsewhere</li>
+          <li>From a specialist or independent brand</li>
         </ul>
       </div>
-
-      <div class="hero-mark" aria-hidden="true">
-        <img
-          src="/icon-512x512.png"
-          alt="BundleBee logo"
-          width="256"
-          height="256"
-          loading="eager"
-          decoding="async"
-        />
-      </div>
     </section>
 
-    <!-- BUNDLEBEE SECTION -->
-    <section class="bundlebee-brand bb-card bb-card--hover">
-      <img
-        src="/icon-192x192.png"
-        alt="BundleBee emblem"
-        class="brand-mark"
-        width="96"
-        height="96"
-        loading="lazy"
-        decoding="async"
-      />
-      <h2>Why BundleBee?</h2>
-      <p>
-        We’re not just a marketplace — we’re a movement for honest, smart, and ethical subscription
-        discovery. Backed by <strong>trust</strong>, powered by <strong>transparency</strong>.
-      </p>
-    </section>
-
-    <!-- HOW IT WORKS -->
-    <section class="how-it-works">
-      <h2>How It Works</h2>
-      <div class="tiles">
-        <article class="tile bb-card">
-          <span class="tile-emoji" aria-hidden="true">🔍</span>
-          <h3>Browse</h3>
-          <p>Explore curated UK brands by lifestyle, values, or category.</p>
-        </article>
-        <article class="tile bb-card">
-          <span class="tile-emoji" aria-hidden="true">🎯</span>
-          <h3>Get Matched</h3>
-          <p>Smart suggestions based on your preferences — no ads, ever.</p>
-        </article>
-        <article class="tile bb-card">
-          <span class="tile-emoji" aria-hidden="true">💬</span>
-          <h3>Read Reviews</h3>
-          <p>Genuine, helpful reviews from real users like you.</p>
-        </article>
-        <article class="tile bb-card">
-          <span class="tile-emoji" aria-hidden="true">🛒</span>
-          <h3>Subscribe Securely</h3>
-          <p>Join trusted partners with verified badges & safe checkout.</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- TRENDING PARTNERS -->
-    <section class="trending-carousel bb-card">
-      <div class="flex items-center justify-between gap-2">
-        <h2>Trending UK Partners</h2>
-        <a class="bb-btn bb-btn--ghost" href="#explore">Explore all</a>
+    <section class="collections" aria-labelledby="collection-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">A better way to browse</p>
+          <h2 id="collection-heading">Start with an idea</h2>
+        </div>
       </div>
 
-      <!-- error / empty states -->
-      <p v-if="boxesError" class="bb-card p-3 text-red-600">{{ boxesError }}</p>
-      <div v-else-if="loading" class="bb-card p-4" aria-busy="true">Loading partners…</div>
-
-      <template v-else>
-        <div
-          v-for="(group, index) in categorizedPartners"
-          :key="group.category || index"
-          class="carousel-row"
+      <div class="collection-grid">
+        <button
+          v-for="item in quickCollections"
+          :key="item.label"
+          class="collection-card"
+          type="button"
+          @click="applyQuickCollection(item)"
         >
-          <h3>{{ group.category }}</h3>
-
-          <div class="carousel-tiles" role="list">
-            <div
-              class="carousel-tile"
-              v-for="(partner, pIndex) in group.partners"
-              :key="partner.id || partner._id || `${group.category}-${pIndex}`"
-              role="listitem"
-            >
-              <div class="new-ribbon" v-if="!partner.ratingsCount || partner.ratingsCount === 0">NEW</div>
-
-              <img
-                class="partner-logo"
-                :src="partner.imageUrl || placeholderImg"
-                :alt="`${partner.name} logo`"
-                @error="onImgError($event)"
-                loading="lazy"
-                decoding="async"
-              />
-
-              <h4 class="partner-name" :title="partner.name">{{ partner.name }}</h4>
-
-              <div class="badge" v-if="partner.isVerified">🛡 Verified</div>
-
-              <div class="rating" aria-label="Partner rating">
-                <template v-if="partner.rating !== undefined && partner.ratingsCount > 0">
-                  <div class="bb-stars" :data-rating="Math.round(partner.rating)">
-                    <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(partner.rating) }">★</span>
-                  </div>
-                  <span class="rating-value">
-                    {{ partner.rating.toFixed(1) }}/5
-                    <span class="user-count">
-                      ({{ formatCount(partner.ratingsCount) }} user{{ partner.ratingsCount === 1 ? '' : 's' }})
-                    </span>
-                  </span>
-                </template>
-                <template v-else>
-                  <span class="no-rating">No ratings yet</span>
-                </template>
-              </div>
-
-              <div class="tile-actions">
-                <a
-                  href="#"
-                  class="visit-btn bb-btn bb-btn--primary"
-                  @click.prevent="openAffiliate(partner)"
-                  rel="sponsored noopener"
-                >
-                  Visit
-                </a>
-                <router-link :to="`/partner/${partner.id || partner._id}`" class="details-btn bb-btn bb-btn--ghost">
-                  Details
-                </router-link>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="!categorizedPartners.length" class="bb-card p-3 text-muted">
-          No partners to show right now. Check back soon!
-        </div>
-      </template>
+          <span class="collection-icon" aria-hidden="true">{{ item.icon }}</span>
+          <strong>{{ item.label }}</strong>
+          <span>{{ item.description }}</span>
+        </button>
+      </div>
     </section>
 
-    <!-- EXPLORE (public catalogue) -->
-    <section id="explore" class="explore bb-card">
-      <div class="explore-header">
-        <h2>Explore All Boxes</h2>
-        <div class="explore-controls">
-          <input
-            v-model.trim="q"
-            type="search"
-            class="bb-input"
-            placeholder="Search by name or keyword…"
-            aria-label="Search boxes"
-          />
+    <section id="catalogue" class="catalogue" aria-labelledby="catalogue-heading">
+      <div class="section-heading catalogue-heading">
+        <div>
+          <p class="eyebrow">The BundleBee catalogue</p>
+          <h2 id="catalogue-heading">Browse all products</h2>
+        </div>
+        <p v-if="!loading" class="result-count">{{ filteredProducts.length }} product{{ filteredProducts.length === 1 ? '' : 's' }}</p>
+      </div>
 
-          <select v-model="cat" class="bb-input" aria-label="Filter by category">
+      <div class="filters" aria-label="Product filters">
+        <label>
+          <span>Search</span>
+          <input v-model.trim="search" type="search" placeholder="Product, brand or keyword" />
+        </label>
+
+        <label>
+          <span>Category</span>
+          <select v-model="category">
             <option value="">All categories</option>
-            <option v-for="c in categoryOptions" :key="c" :value="c">{{ c }}</option>
+            <option v-for="item in categories" :key="item" :value="item">{{ item }}</option>
           </select>
+        </label>
 
-          <select v-model="sort" class="bb-input" aria-label="Sort">
-            <option value="relevance">Relevance</option>
-            <option value="rating">Top rated</option>
+        <label>
+          <span>Type</span>
+          <select v-model="productType">
+            <option value="">All product types</option>
+            <option value="physical">Physical products</option>
+            <option value="digital">Digital products</option>
+            <option value="subscription">Subscriptions</option>
+            <option value="experience">Experiences</option>
+            <option value="service">Services</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Sort</span>
+          <select v-model="sort">
+            <option value="featured">Featured first</option>
+            <option value="newest">Newest</option>
             <option value="price-asc">Price: low to high</option>
             <option value="price-desc">Price: high to low</option>
-            <option value="popularity">Popularity</option>
+            <option value="popular">Most viewed</option>
           </select>
-        </div>
+        </label>
       </div>
 
-      <div v-if="loading" class="bb-card p-4" aria-busy="true">Loading catalogue…</div>
+      <div v-if="loading" class="state-card">Loading the catalogue…</div>
+      <div v-else-if="error" class="state-card state-error">{{ error }}</div>
+      <div v-else-if="filteredProducts.length === 0" class="state-card">
+        <h3>No matching products yet</h3>
+        <p>Try clearing a filter. The catalogue is being rebuilt around products from specialist brands.</p>
+        <button class="btn btn-secondary" type="button" @click="clearFilters">Clear filters</button>
+      </div>
 
-      <template v-else>
-        <p v-if="exploreTotal === 0" class="text-muted">No matches. Try a different search or filter.</p>
+      <div v-else class="product-grid">
+        <article v-for="product in visibleProducts" :key="product.id" class="product-card">
+          <div class="image-wrap">
+            <img :src="product.imageUrl || placeholderImage" :alt="product.name" loading="lazy" @error="usePlaceholder" />
+            <span v-if="product.badge" class="badge">{{ product.badge }}</span>
+          </div>
 
-        <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <article
-            v-for="b in explorePageItems"
-            :key="b.id"
-            class="bb-card p-3 flex flex-col"
-          >
-            <a :href="b.website || '#'" target="_blank" rel="noopener" class="block">
-              <div class="aspect-[4/3] w-full overflow-hidden rounded" :style="{ background: 'var(--bb-surface-2)' }">
-                <img :src="b.imageUrl || defaultImage" :alt="b.name" style="width:100%;height:100%;object-fit:cover" />
-              </div>
-            </a>
+          <div class="product-body">
+            <p class="brand-name">{{ product.brandName || 'Specialist brand' }}</p>
+            <h3>{{ product.name }}</h3>
+            <p class="description">{{ product.shortDescription || product.description }}</p>
 
-            <div class="mt-3 flex-1 flex flex-col">
-              <h3 class="text-lg font-semibold">{{ b.name }}</h3>
-              <div class="text-sm text-muted">{{ b.category || '—' }}</div>
-              <p class="mt-2 text-sm">{{ b.description || 'No description provided.' }}</p>
-
-              <div class="mt-3 flex items-center justify-between">
-                <div class="font-bold">£{{ Number(b.price || 0).toFixed(2) }}</div>
-                <div class="text-sm">⭐ {{ (b.rating || 0).toFixed(1) }}<span class="text-muted"> ({{ b.ratingsCount || 0 }})</span></div>
-              </div>
-
-              <div class="mt-3 flex gap-2">
-                <a class="bb-btn bb-btn--ghost flex-1 text-center" :href="b.website || '#'" target="_blank" rel="noopener">Visit</a>
-                <a
-                  class="bb-btn bb-btn--primary flex-1 text-center"
-                  href="#"
-                  @click.prevent="openAffiliate(b)"
-                  rel="sponsored noopener"
-                >Get Deal</a>
-              </div>
+            <div class="product-meta">
+              <strong v-if="product.price !== null">{{ formatPrice(product.price, product.currency) }}</strong>
+              <span>{{ product.category || 'Other' }}</span>
             </div>
-          </article>
-        </div>
 
-        <div v-if="exploreShown < exploreTotal" class="mt-4 text-center">
-          <button class="bb-btn bb-btn--primary" @click="loadMore">Load more</button>
-          <p class="text-muted mt-2">{{ exploreShown }} of {{ exploreTotal }} shown</p>
-        </div>
-      </template>
-    </section>
+            <button class="btn btn-primary product-button" type="button" @click="openRetailer(product)">
+              Visit retailer
+            </button>
+          </div>
+        </article>
+      </div>
 
-    <!-- TESTIMONIALS -->
-    <section class="testimonial-carousel bb-card">
-      <h2>What Our Users Are Saying</h2>
-      <div class="testimonial" aria-live="polite">
-        <transition name="fade" mode="out-in">
-          <blockquote :key="currentIndex">
-            “{{ testimonials[currentIndex].quote }}”
-            <footer>— {{ testimonials[currentIndex].author }}</footer>
-          </blockquote>
-        </transition>
+      <div v-if="visibleProducts.length < filteredProducts.length" class="load-more">
+        <button class="btn btn-secondary" type="button" @click="shown += pageSize">Load more</button>
       </div>
     </section>
-  </div>
+
+    <section id="how-it-works" class="how-it-works" aria-labelledby="how-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Simple and transparent</p>
+          <h2 id="how-heading">How BundleBee works</h2>
+        </div>
+      </div>
+
+      <div class="steps">
+        <article>
+          <span>1</span>
+          <h3>We find products</h3>
+          <p>We look for useful, giftable and distinctive products from independent and specialist brands.</p>
+        </article>
+        <article>
+          <span>2</span>
+          <h3>You browse here</h3>
+          <p>Search the catalogue or use collections to narrow down what would actually suit you.</p>
+        </article>
+        <article>
+          <span>3</span>
+          <h3>The retailer handles the order</h3>
+          <p>BundleBee does not take payment or deliver products. You complete the purchase with the retailer.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="disclosure" aria-labelledby="disclosure-heading">
+      <h2 id="disclosure-heading">How BundleBee earns money</h2>
+      <p>
+        Some retailer links are affiliate links. BundleBee may receive a commission when you buy something
+        after following one of those links. It does not increase the price you pay. Products should earn their
+        place in the catalogue because they fit our selection standards, not simply because they pay the
+        highest commission.
+      </p>
+    </section>
+  </main>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import API from '../api.js';
+import { computed, onMounted, ref, watch } from "vue";
+import API from "../api.js";
 
-/* ────────────────────────────────────────────────────────────
-   State
-──────────────────────────────────────────────────────────── */
 const loading = ref(true);
-const boxesError = ref('');
-const boxes = ref([]);
+const error = ref("");
+const products = ref([]);
+const search = ref("");
+const category = ref("");
+const productType = ref("");
+const sort = ref("featured");
+const shown = ref(12);
+const pageSize = 12;
+const placeholderImage = "/icon-512x512.png";
 
-const placeholders = ['/android-chrome-192x192.png', '/icon-192x192.png'];
-const placeholderImg = placeholders[0];
+const quickCollections = [
+  { label: "Gifts under £25", icon: "🎁", description: "Affordable finds that still feel thoughtful", search: "gift" },
+  { label: "Independent brands", icon: "🏪", description: "Products from smaller specialist businesses", search: "independent" },
+  { label: "Teen favourites", icon: "✨", description: "Useful and fun finds for teenagers", search: "teen" },
+  { label: "Subscriptions", icon: "📦", description: "Regular treats, hobbies and useful services", type: "subscription" },
+];
 
-const defaultImage  = 'https://via.placeholder.com/320x240?text=BundleBee';
-
-const testimonials = ref([
-  { quote: 'Finally a marketplace I can trust.', author: 'Alice, Leeds' },
-  { quote: 'Every partner I tried from BundleBee delivered real value.', author: 'Tom, Bristol' },
-  { quote: 'Reviews actually reflect reality. Love the clean design too!', author: 'Samira, London' }
-]);
-const currentIndex = ref(0);
-let testimonialTimer = null;
-let controller = null;
-
-/* ────────────────────────────────────────────────────────────
-   Normaliser
-──────────────────────────────────────────────────────────── */
-function normBox(b) {
-  const priceNum = Number(String(b?.price ?? '').replace(/[^\d.]/g, '')) || 0;
-  const rating = Number(b?.rating ?? b?.ratings ?? 0) || 0;
-  const ratingsCount = Number(b?.ratingsCount ?? 0) || 0;
-
-  const category =
-    typeof b?.category === 'object'
-      ? (b?.category?.name || '')
-      : (b?.category || '');
+function normaliseProduct(item) {
+  const brand = typeof item?.brand === "object" ? item.brand : null;
+  const itemCategories = Array.isArray(item?.categories) ? item.categories : [];
+  const legacyCategory = typeof item?.category === "object" ? item.category?.name : item?.category;
+  const firstCategory = itemCategories[0];
+  const categoryName = typeof firstCategory === "object" ? firstCategory?.name : firstCategory;
+  const parsedPrice = Number(String(item?.price ?? "").replace(/[^0-9.]/g, ""));
 
   return {
-    id: b?._id || b?.id || `${b?.name}-${priceNum}`,
-    name: b?.name || 'Untitled',
-    category: category || 'Other',
-    description: b?.description || '',
-    price: priceNum,
-    rating,
-    ratingsCount,
-    clicks: Number(b?.clicks ?? 0) || 0,
-    imageUrl: b?.imageUrl || b?.logoUrl || '',
-    website: b?.website || b?.url || '#',
-    affiliateLink: b?.affiliateLink || b?.affiliate_url || '',
-    isVerified: !!b?.isVerified,
-    keywords: String(b?.keywords || '').toLowerCase(),
+    id: item?._id || item?.id || item?.slug || item?.name,
+    slug: item?.slug || "",
+    name: item?.name || "Untitled product",
+    brandName: brand?.name || item?.brandName || "",
+    shortDescription: item?.shortDescription || item?.description || "",
+    description: item?.description || "",
+    price: Number.isFinite(parsedPrice) ? parsedPrice : null,
+    currency: item?.currency || "GBP",
+    productUrl: item?.productUrl || item?.website || "",
+    affiliateUrl: item?.affiliateUrl || item?.affiliateLink || "",
+    imageUrl: item?.imageUrl || item?.logoUrl || "",
+    category: categoryName || legacyCategory || "Other",
+    productType: item?.productType || "subscription",
+    featured: Boolean(item?.featured),
+    clicks: Number(item?.clicks || 0),
+    badge: Array.isArray(item?.badges) ? item.badges[0] : "",
+    tags: Array.isArray(item?.tags) ? item.tags.join(" ") : String(item?.tags || ""),
+    isNewApi: Boolean(item?.slug && item?.brand),
   };
 }
 
-/* ────────────────────────────────────────────────────────────
-   Data
-──────────────────────────────────────────────────────────── */
-async function fetchBoxes() {
+async function fetchCatalogue() {
   loading.value = true;
-  boxesError.value = '';
-
-  if (controller) controller.abort();
-  controller = new AbortController();
+  error.value = "";
 
   try {
-    let raw = [];
-    try {
-      const res = await API.get('/boxes/public', { signal: controller.signal });
-      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
-    } catch {
-      const res = await API.get('/boxes', { signal: controller.signal });
-      raw = Array.isArray(res?.data) ? res.data : (res?.data?.items || []);
+    const { data } = await API.get("/products", { params: { limit: 100 } });
+    const nextProducts = Array.isArray(data?.items) ? data.items : [];
+
+    if (nextProducts.length > 0) {
+      products.value = nextProducts.map(normaliseProduct);
+      return;
     }
-    boxes.value = raw.map(normBox);
-  } catch (err) {
-    if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
-      console.error('❌ Failed to fetch boxes:', err);
-      boxesError.value = 'We couldn’t load partners just now. Please try again.';
-    }
+
+    // Temporary compatibility while legacy subscription records are migrated.
+    const legacy = await API.get("/boxes");
+    const legacyItems = Array.isArray(legacy?.data) ? legacy.data : legacy?.data?.boxes || [];
+    products.value = legacyItems.map(normaliseProduct);
+  } catch (requestError) {
+    console.error("Catalogue request failed:", requestError);
+    error.value = "The catalogue could not be loaded. Please try again shortly.";
   } finally {
     loading.value = false;
   }
 }
 
-/* ────────────────────────────────────────────────────────────
-   Trending (same data, grouped)
-──────────────────────────────────────────────────────────── */
-const categorizedPartners = computed(() => {
-  const groups = new Map();
-  for (const box of boxes.value) {
-    const key = box.category || 'Other';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(box);
-  }
-  return Array.from(groups.entries()).map(([category, partners]) => ({
-    category,
-    partners: partners.slice(0, 10) // small trending slice per category
-  }));
-});
+const categories = computed(() =>
+  [...new Set(products.value.map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+);
 
-/* ────────────────────────────────────────────────────────────
-   Explore: search / filter / sort / paging (client-side)
-──────────────────────────────────────────────────────────── */
-const q = ref('');
-const cat = ref('');
-const sort = ref('relevance');
-
-const pageSize = ref(9);
-const page = ref(1);
-
-const allCategories = computed(() => {
-  const set = new Set();
-  for (const b of boxes.value) if (b.category) set.add(b.category);
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-});
-const categoryOptions = computed(() => allCategories.value);
-
-const explored = computed(() => {
-  const query = q.value.toLowerCase().trim();
-  const category = cat.value;
-
-  let list = boxes.value;
-
-  // filter
-  if (category) list = list.filter(b => b.category === category);
-  if (query) {
-    list = list.filter(b =>
-      b.name.toLowerCase().includes(query) ||
-      b.keywords?.includes(query) ||
-      b.description?.toLowerCase().includes(query)
+const filteredProducts = computed(() => {
+  const needle = search.value.toLowerCase();
+  const list = products.value.filter((item) => {
+    const searchable = `${item.name} ${item.brandName} ${item.shortDescription} ${item.description} ${item.tags}`.toLowerCase();
+    return (
+      (!needle || searchable.includes(needle)) &&
+      (!category.value || item.category === category.value) &&
+      (!productType.value || item.productType === productType.value)
     );
-  }
+  });
 
-  // sort
-  switch (sort.value) {
-    case 'rating':
-      list = [...list].sort((a, b) => (b.rating - a.rating) || (b.ratingsCount - a.ratingsCount));
-      break;
-    case 'price-asc':
-      list = [...list].sort((a, b) => a.price - b.price);
-      break;
-    case 'price-desc':
-      list = [...list].sort((a, b) => b.price - a.price);
-      break;
-    case 'popularity':
-      list = [...list].sort((a, b) => (b.clicks - a.clicks) || (b.rating - a.rating));
-      break;
-    default:
-      // relevance: naive score = name hit, keywords hit, rating, clicks
-      list = [...list].sort((a, b) => score(b, query) - score(a, query));
-  }
-
-  return list;
+  return [...list].sort((a, b) => {
+    if (sort.value === "newest") return String(b.id).localeCompare(String(a.id));
+    if (sort.value === "price-asc") return (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
+    if (sort.value === "price-desc") return (b.price ?? -1) - (a.price ?? -1);
+    if (sort.value === "popular") return b.clicks - a.clicks;
+    return Number(b.featured) - Number(a.featured);
+  });
 });
 
-function score(item, qstr) {
-  if (!qstr) return (item.rating * 2) + (item.clicks / 100);
-  const nameHit = item.name.toLowerCase().includes(qstr) ? 5 : 0;
-  const kwHit = item.keywords?.includes(qstr) ? 3 : 0;
-  const descHit = item.description?.toLowerCase().includes(qstr) ? 1 : 0;
-  return nameHit + kwHit + descHit + (item.rating || 0);
+const visibleProducts = computed(() => filteredProducts.value.slice(0, shown.value));
+
+watch([search, category, productType, sort], () => {
+  shown.value = pageSize;
+});
+
+function clearFilters() {
+  search.value = "";
+  category.value = "";
+  productType.value = "";
+  sort.value = "featured";
 }
 
-const exploreTotal = computed(() => explored.value.length);
-const exploreShown = computed(() => Math.min(page.value * pageSize.value, exploreTotal.value));
-const explorePageItems = computed(() => explored.value.slice(0, exploreShown.value));
-
-function loadMore() {
-  if (exploreShown.value < exploreTotal.value) page.value += 1;
+function applyQuickCollection(item) {
+  clearFilters();
+  if (item.search) search.value = item.search;
+  if (item.type) productType.value = item.type;
+  document.querySelector("#catalogue")?.scrollIntoView({ behavior: "smooth" });
 }
 
-// reset pagination on filter change
-watch([q, cat, sort], () => { page.value = 1; });
-
-/* ────────────────────────────────────────────────────────────
-   UX helpers
-──────────────────────────────────────────────────────────── */
-function onImgError(e) {
-  if (!placeholders.includes(e.target.src)) {
-    e.target.src = placeholderImg;
-  }
-}
-function formatCount(count) {
-  return count < 1000 ? count : `${(count / 1000).toFixed(1).replace('.0', '')}k+`;
+function formatPrice(value, currency = "GBP") {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(value);
 }
 
-/* ────────────────────────────────────────────────────────────
-   Revenue-safe click: log then open
-──────────────────────────────────────────────────────────── */
-async function openAffiliate(partner) {
-  try {
-    const url = partner.affiliateLink || partner.website;
-    if (!url) return;
+function usePlaceholder(event) {
+  event.target.src = placeholderImage;
+}
 
+async function openRetailer(product) {
+  let destination = product.affiliateUrl || product.productUrl;
+
+  if (product.isNewApi && product.id) {
     try {
-      await API.post('/interactions', {
-        action: 'clicked_affiliate_link',
-        details: { boxId: partner.id, name: partner.name, url }
-      });
-    } catch {
-      // non-blocking
+      const { data } = await API.post(`/products/${product.id}/click`);
+      destination = data?.url || destination;
+    } catch (clickError) {
+      console.warn("Click tracking failed; opening the known destination instead.", clickError);
     }
-
-    window.open(url, '_blank', 'noopener');
-  } catch (err) {
-    console.error('Affiliate open failed:', err);
   }
+
+  if (!destination) return;
+  window.open(destination, "_blank", "noopener,noreferrer");
 }
 
-/* ────────────────────────────────────────────────────────────
-   Lifecycle
-──────────────────────────────────────────────────────────── */
-onMounted(() => {
-  fetchBoxes();
-  testimonialTimer = setInterval(() => {
-    currentIndex.value = (currentIndex.value + 1) % testimonials.value.length;
-  }, 5000);
-});
-
-onUnmounted(() => {
-  if (testimonialTimer) clearInterval(testimonialTimer);
-  if (controller) controller.abort();
-});
+onMounted(fetchCatalogue);
 </script>
 
 <style scoped>
-/* ===== HERO SECTION ===== */
-.hero.updated-hero {
-  position: relative;
+.shop-home {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  color: var(--bb-text, #172018);
+}
+
+.hero {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
   gap: 2rem;
   align-items: center;
-  background:
-    radial-gradient(1200px 400px at 10% 20%, color-mix(in srgb, var(--bb-primary-light) 20%, transparent), transparent),
-    linear-gradient(180deg, color-mix(in srgb, var(--bb-primary-light) 6%, var(--bb-bg) 94%), var(--bb-bg));
-  padding: clamp(2rem, 4vw, 4rem) clamp(1rem, 4vw, 2rem);
-  border-radius: var(--bb-radius);
-  margin: 2rem auto;
-  max-width: 1120px;
-  box-shadow: var(--bb-shadow-md);
+  padding: clamp(2rem, 5vw, 4.5rem);
+  border-radius: 28px;
+  background: linear-gradient(135deg, #fff7c8 0%, #f6fbef 52%, #e8f4dc 100%);
+  box-shadow: 0 20px 60px rgba(31, 52, 28, 0.12);
 }
 
-.hero-content { text-align: left; }
-.hero-badge { margin-bottom: .75rem; }
-.hero-title {
-  font-family: var(--bb-font-heading);
-  font-size: clamp(1.75rem, 3.4vw, 3rem);
-  line-height: 1.1;
-  margin: 0 0 .5rem;
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: #537230;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
-.hero-subtitle {
-  color: var(--bb-muted);
-  font-size: clamp(1rem, 1.4vw, 1.15rem);
-  max-width: 52ch;
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
 }
-.hero-cta { display: flex; gap: .75rem; margin-top: 1rem; flex-wrap: wrap; }
-.hero-mark { display: grid; place-items: center; }
-.hero-mark img { width: min(280px, 60vw); height: auto; filter: drop-shadow(0 12px 26px rgba(0,0,0,.06)); }
 
-/* ===== BRAND SECTION ===== */
-.bundlebee-brand { text-align: center; padding: 2rem 1.25rem; margin: 2rem auto 0; max-width: 960px; }
-.bundlebee-brand .brand-mark { height: 96px; width: 96px; margin-bottom: .5rem; }
-.bundlebee-brand h2 { font-size: clamp(1.4rem, 2.2vw, 2rem); margin-bottom: .5rem; }
-.bundlebee-brand p { color: var(--bb-muted); max-width: 60ch; margin: 0 auto; }
-
-/* ===== HOW IT WORKS ===== */
-.how-it-works { margin: 2rem auto; padding: 2rem 1.25rem; max-width: 1120px; text-align: center; }
-.how-it-works h2 { font-size: clamp(1.4rem, 2.2vw, 2rem); margin-bottom: 1.25rem; }
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 1rem; }
-.tile { padding: 1rem; border-radius: var(--bb-radius); transition: transform var(--bb-duration) var(--bb-ease), box-shadow var(--bb-duration) var(--bb-ease); }
-.tile:hover { transform: translateY(-2px); box-shadow: var(--bb-shadow-md); }
-.tile-emoji { font-size: 1.5rem; display: inline-block; margin-bottom: .5rem; }
-.tile h3 { margin: .25rem 0; font-size: 1.05rem; }
-.tile p { color: var(--bb-muted); font-size: .95rem; }
-
-/* ===== TRENDING PARTNERS ===== */
-.trending-carousel { background: var(--bb-surface); border: 1px solid var(--bb-border); border-radius: var(--bb-radius); padding: 1.5rem; margin: 2rem auto; max-width: 1120px; }
-.trending-carousel h2 { font-size: clamp(1.3rem, 2vw, 1.8rem); margin-bottom: 1rem; }
-.carousel-row { margin-bottom: 1.25rem; }
-.carousel-row h3 { font-size: 1.05rem; margin: .25rem 0 .75rem; color: var(--bb-muted); }
-.carousel-tiles { display: flex; gap: .75rem; overflow-x: auto; scroll-behavior: smooth; padding-bottom: .25rem; }
-.carousel-tiles::-webkit-scrollbar { height: 6px; }
-.carousel-tiles::-webkit-scrollbar-thumb { background: var(--bb-border); border-radius: 4px; }
-.carousel-tile { background: var(--bb-surface); border: 1px solid var(--bb-border); border-radius: var(--bb-radius-md); padding: .9rem; width: 220px; min-height: 320px; flex: 0 0 auto; text-align: center; position: relative; }
-.new-ribbon { position: absolute; top: 0; right: 0; background: var(--bb-accent); color: #1a1a1a; font-size: .7rem; font-weight: 800; padding: 2px 36px; transform: rotate(45deg) translate(22%, -65%); transform-origin: top right; box-shadow: var(--bb-shadow-sm); }
-.partner-logo { max-width: 100%; max-height: 80px; object-fit: contain; margin-bottom: .5rem; }
-.partner-name { font-weight: 700; margin: 0.25rem 0 .35rem; height: 2.4em; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.badge { color: var(--bb-primary-dark); font-weight: 700; font-size: .85rem; }
-.rating { display: grid; place-items: center; gap: .25rem; margin: .35rem 0; }
-.star { color: var(--bb-border); }
-.star.filled { color: var(--bb-accent); }
-.rating-value { font-size: .85rem; }
-.user-count { color: var(--bb-muted); margin-left: .25rem; font-size: .8rem; }
-.tile-actions { margin-top: .6rem; display: grid; gap: .5rem; }
-.visit-btn, .details-btn { width: 100%; }
-
-/* ===== EXPLORE ===== */
-.explore { margin: 2rem auto; max-width: 1120px; padding: 1.25rem; }
-.explore-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
-.explore-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
-.bb-input { padding: .6rem .7rem; border: 1px solid var(--bb-border); background: var(--bb-surface); border-radius: .6rem; min-width: 200px; }
-
-/* ===== TESTIMONIALS ===== */
-.testimonial-carousel { margin: 2rem auto; max-width: 840px; padding: 1.5rem; border: 1px solid var(--bb-border); border-radius: var(--bb-radius); }
-.testimonial-carousel h2 { margin-bottom: .75rem; font-size: clamp(1.2rem, 1.8vw, 1.6rem); }
-.testimonial blockquote { font-size: 1.05rem; font-style: italic; color: var(--bb-text); opacity: .9; margin: 0 auto; max-width: 60ch; }
-.testimonial footer { margin-top: .6rem; font-weight: 600; color: var(--bb-muted); }
-
-/* ===== RESPONSIVE ===== */
-@media (max-width: 920px) {
-  .hero.updated-hero { grid-template-columns: 1fr; text-align: center; }
-  .hero-content { text-align: center; }
-  .hero-cta { justify-content: center; }
+h1 {
+  max-width: 800px;
+  margin-bottom: 1rem;
+  font-size: clamp(2.25rem, 5vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
 }
+
+.hero-text {
+  max-width: 700px;
+  font-size: 1.15rem;
+  line-height: 1.65;
+  color: #465247;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #263f20;
+  color: white;
+}
+
+.btn-secondary {
+  border-color: #a7b99c;
+  background: rgba(255, 255, 255, 0.75);
+  color: #263f20;
+}
+
+.hero-card {
+  padding: 1.6rem;
+  border: 1px solid rgba(55, 83, 43, 0.18);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.hero-icon,
+.collection-icon {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 2rem;
+}
+
+.hero-card ul {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1.2rem;
+  margin-bottom: 0;
+}
+
+.collections,
+.catalogue,
+.how-it-works,
+.disclosure {
+  margin-top: 4rem;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.35rem;
+}
+
+.section-heading h2,
+.disclosure h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  letter-spacing: -0.025em;
+}
+
+.collection-grid,
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.collection-card,
+.steps article {
+  min-height: 170px;
+  padding: 1.25rem;
+  border: 1px solid #dce5d7;
+  border-radius: 20px;
+  background: white;
+  text-align: left;
+}
+
+.collection-card {
+  color: inherit;
+  cursor: pointer;
+}
+
+.collection-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(34, 58, 28, 0.1);
+}
+
+.collection-card strong,
+.collection-card span:last-child {
+  display: block;
+}
+
+.collection-card span:last-child {
+  margin-top: 0.4rem;
+  color: #657166;
+  line-height: 1.4;
+}
+
+.catalogue-heading {
+  align-items: center;
+}
+
+.result-count {
+  margin: 0;
+  color: #687169;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(150px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: #f2f6ef;
+}
+
+.filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.filters input,
+.filters select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #cbd8c5;
+  border-radius: 11px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.15rem;
+}
+
+.product-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dce5d7;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 8px 28px rgba(42, 61, 37, 0.07);
+}
+
+.image-wrap {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #f2f5ef;
+}
+
+.image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: #fff3a8;
+  color: #3d470d;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.product-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+.brand-name {
+  margin-bottom: 0.35rem;
+  color: #6b7869;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.product-body h3 {
+  margin-bottom: 0.55rem;
+  line-height: 1.25;
+}
+
+.description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  color: #586259;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.product-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  margin-bottom: 0.9rem;
+  color: #677166;
+  font-size: 0.85rem;
+}
+
+.product-meta strong {
+  color: #1f2e1d;
+  font-size: 1rem;
+}
+
+.product-button {
+  width: 100%;
+}
+
+.state-card,
+.disclosure {
+  padding: 1.4rem;
+  border: 1px solid #dce5d7;
+  border-radius: 18px;
+  background: #f8faf6;
+}
+
+.state-error {
+  border-color: #e8b6b6;
+  background: #fff5f5;
+  color: #8a2828;
+}
+
+.load-more {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.steps article span {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+  background: #263f20;
+  color: white;
+  font-weight: 800;
+}
+
+.steps article p,
+.disclosure p {
+  margin-bottom: 0;
+  color: #586259;
+  line-height: 1.6;
+}
+
+.disclosure {
+  background: #fff9df;
+}
+
+@media (max-width: 1000px) {
+  .product-grid,
+  .collection-grid,
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 720px) {
-  .tiles { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-}
-@media (max-width: 420px) {
-  .tiles { grid-template-columns: 1fr; }
-  .carousel-tile { width: 85vw; }
-}
+  .shop-home {
+    padding: 1rem 0.8rem 3rem;
+  }
 
-/* Fade transition for testimonials */
-.fade-enter-active, .fade-leave-active { transition: opacity .35s var(--bb-ease); }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .product-grid,
+  .collection-grid,
+  .steps,
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 </style>
