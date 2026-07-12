@@ -64,6 +64,7 @@ app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 // Supabase magic-link sessions are the sole administrator authentication path.
 app.use("/api/supabase", require("./routes/supabaseAuthRoutes"));
+app.use("/api/auth", require("./routes/magicLinkAuthRoutes"));
 app.use("/api/admin/users", require("./routes/adminUserRoutes"));
 
 // Active shopping platform plus temporary legacy catalogue compatibility.
