@@ -1,257 +1,138 @@
 <template>
-  <div class="verify-2fa">
-    <div class="bb-card card">
-      <h1 class="title">Two-Factor Verification</h1>
+  <section class="mfa-shell">
+    <div class="mfa-card">
+      <p class="eyebrow">Secure administrator access</p>
+      <h1>{{ mode === 'setup' ? 'Set up authenticator app' : 'Enter authenticator code' }}</h1>
 
-      <!-- Initial state -->
-      <p v-if="uiState==='idle'" class="muted">Preparing verification…</p>
+      <p v-if="loading" class="muted">Preparing secure verification…</p>
 
-      <!-- Main content -->
-      <div v-else>
-        <!-- Send/Resend -->
-        <div class="hint">
-          <p class="muted">
-            A 6-digit code is required to continue.
-            <span v-if="otpTicket">We detected a recent login — we’ll email your code.</span>
-            <span v-else>You can request your code below.</span>
-          </p>
-
-          <div class="send-row">
-            <button
-              class="bb-btn bb-btn--primary"
-              @click="sendCode"
-              :disabled="loading || cooldown>0"
-            >
-              {{ cooldown>0 ? `Resend in ${cooldown}s` : (codeSent ? 'Resend code' : 'Send code') }}
-            </button>
-            <span v-if="message" class="ok">{{ message }}</span>
-            <span v-if="error && !codeErrorOnly" class="err">{{ error }}</span>
-          </div>
+      <template v-else>
+        <div v-if="mode === 'setup'" class="setup">
+          <p>Scan this QR code with Microsoft Authenticator, Google Authenticator, 1Password, Bitwarden or another TOTP app.</p>
+          <img v-if="qrCode" :src="qrCode" alt="Authenticator setup QR code" class="qr" />
+          <details v-if="secret">
+            <summary>Cannot scan the QR code?</summary>
+            <p>Enter this setup key manually:</p>
+            <code>{{ secret }}</code>
+          </details>
         </div>
 
-        <!-- Verify form -->
-        <form class="form" @submit.prevent="verifyCode" autocomplete="one-time-code" novalidate>
-          <label for="code">Enter 6-digit code</label>
+        <p v-else class="muted">Open your authenticator app and enter the current six-digit BundleBee code.</p>
+
+        <form @submit.prevent="verify">
+          <label for="totp-code">Six-digit code</label>
           <input
-            id="code"
-            class="bb-input code-input"
+            id="totp-code"
             v-model="code"
             inputmode="numeric"
             autocomplete="one-time-code"
+            pattern="[0-9]{6}"
             maxlength="6"
-            minlength="6"
-            pattern="^[0-9]{6}$"
-            placeholder="••••••"
-            @input="onCodeInput"
+            placeholder="000000"
             required
+            @input="code = code.replace(/\D/g, '').slice(0, 6)"
           />
-
-          <label class="trust">
-            <input type="checkbox" v-model="trustDevice" />
-            Trust this device (30 days)
-          </label>
-
-          <button
-            class="bb-btn bb-btn--primary"
-            type="submit"
-            :disabled="loading || code.length!==6"
-            aria-busy="loading ? 'true' : 'false'"
-          >
-            {{ loading ? 'Verifying…' : 'Verify & Continue' }}
+          <button type="submit" :disabled="submitting || code.length !== 6">
+            {{ submitting ? 'Verifying…' : 'Verify and continue' }}
           </button>
-
-          <p v-if="codeErrorOnly" class="err mt-2">{{ error }}</p>
         </form>
 
-        <!-- Debug (collapsible) -->
-        <details class="debug">
-          <summary>Debug info</summary>
-          <pre>{{ debugInfo }}</pre>
-        </details>
-      </div>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <button class="link-button" type="button" @click="signOut">Sign out and use another account</button>
+      </template>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup>
-import { onMounted, ref, computed } from 'vue';
-import API, { email2FA, getNextAuthStep, checkAuthStatus } from '../api.js';
+import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { getBackendSupabaseSession } from '@/api';
+import {
+  challengeAndVerifyTotp,
+  enrollTotp,
+  signOutSupabase,
+} from '@/supabaseAuth';
 
-/** ───────────────────────────────────────────────────────────
- *  State
- *  ─────────────────────────────────────────────────────────── */
-const uiState = ref('idle'); // idle | ready
-const loading = ref(false);
-
-const otpTicket = ref(false); // whether cookie is present
-const codeSent = ref(false);
-const cooldown = ref(0); // seconds
-let cooldownTimer = null;
-
-const code = ref('');
-const trustDevice = ref(false);
-
+const route = useRoute();
+const loading = ref(true);
+const submitting = ref(false);
 const error = ref('');
-const message = ref('');
+const mode = ref('verify');
+const factorId = ref('');
+const enrollment = ref(null);
+const code = ref('');
 
-/** Debug bundle */
-const debug = ref({
-  url: '',
-  cookies: '',
-  statusBefore: null,
-  sentResp: null,
-  verifyResp: null,
-  statusAfter: null,
-});
-const debugInfo = computed(() => JSON.stringify(debug.value, null, 2));
-const codeErrorOnly = computed(() => !!error.value && code.value.length >= 1);
+const qrCode = computed(() => enrollment.value?.totp?.qr_code || enrollment.value?.totp?.qrCode || '');
+const secret = computed(() => enrollment.value?.totp?.secret || '');
 
-/** ───────────────────────────────────────────────────────────
- *  Helpers
- *  ─────────────────────────────────────────────────────────── */
-function hasOtpTicketCookie() {
-  const c = document.cookie || '';
-  return /(?:^|;\s*)otpTicket=/.test(c);
+function safeRedirect(value) {
+  const path = String(value || '');
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/admin';
 }
-function startCooldown(seconds = 30) {
-  if (cooldownTimer) clearInterval(cooldownTimer);
-  cooldown.value = seconds;
-  cooldownTimer = setInterval(() => {
-    cooldown.value -= 1;
-    if (cooldown.value <= 0) {
-      clearInterval(cooldownTimer);
-      cooldownTimer = null;
+
+async function initialise() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const session = await getBackendSupabaseSession();
+    if (!session?.isAdmin) {
+      window.location.assign('/login?reason=admin-required');
+      return;
     }
-  }, 1000);
-}
-function onCodeInput(e) {
-  const digits = (e?.target?.value ?? '').replace(/[^0-9]/g, '').slice(0, 6);
-  code.value = digits;
-}
+    if (session.aal === 'aal2') {
+      window.location.assign(safeRedirect(route.query.redirect));
+      return;
+    }
 
-/** ───────────────────────────────────────────────────────────
- *  Network
- *  ─────────────────────────────────────────────────────────── */
-async function bootstrapStatus(where = 'before') {
-  const r = await checkAuthStatus().catch(() => null);
-  debug.value[where === 'before' ? 'statusBefore' : 'statusAfter'] = r;
-  return r;
-}
+    const verifiedTotp = (session.user?.factors || []).find(
+      (factor) => factor.factor_type === 'totp' && factor.status === 'verified'
+    );
 
-async function sendCode() {
-  loading.value = true;
-  error.value = '';
-  message.value = '';
-  try {
-    // Prefer resend; API aliases send/resend identical in your backend wrapper
-    const resp = await email2FA.resend().catch(async () => email2FA.send());
-    debug.value.sentResp = resp;
-    codeSent.value = true;
-    message.value = 'Verification code sent to your email.';
-    startCooldown(30);
-  } catch (e) {
-    console.error('❌ [2FA] send/resend failed', e);
-    error.value = e?.response?.data?.message || 'Failed to send verification email.';
+    if (verifiedTotp) {
+      mode.value = 'verify';
+      factorId.value = verifiedTotp.id;
+    } else {
+      mode.value = 'setup';
+      enrollment.value = await enrollTotp();
+      factorId.value = enrollment.value?.id || '';
+      if (!factorId.value) throw new Error('Supabase did not return an authenticator factor ID.');
+    }
+  } catch (err) {
+    if (err?.response?.status === 401 || err?.status === 401) {
+      window.location.assign('/login?reason=session-expired');
+      return;
+    }
+    error.value = err?.response?.data?.message || err?.message || 'Unable to prepare authenticator verification.';
   } finally {
     loading.value = false;
   }
 }
 
-async function verifyCode() {
-  loading.value = true;
+async function verify() {
+  submitting.value = true;
   error.value = '';
-  message.value = '';
   try {
-    const resp = await email2FA.verify({ code: code.value, trustThisDevice: trustDevice.value });
-    debug.value.verifyResp = resp;
-
-    // Confirm backend now sees us as verified
-    const after = await bootstrapStatus('after');
-
-    // Route by /auth/next
-    const next = await getNextAuthStep().catch(() => ({ step: 'dashboard', redirectTo: '/dashboard' }));
-    const to = next?.redirectTo || '/dashboard';
-
-    // Some UIs prefer a small delay to ensure cookies propagate
-    setTimeout(() => window.location.assign(to), 100);
-  } catch (e) {
-    console.error('❌ [2FA] verify failed', e);
-    error.value = e?.response?.data?.message || 'Invalid or expired code.';
+    await challengeAndVerifyTotp(factorId.value, code.value);
+    const session = await getBackendSupabaseSession();
+    if (session?.aal !== 'aal2') throw new Error('Authenticator verification did not reach the required security level.');
+    window.location.assign(safeRedirect(route.query.redirect));
+  } catch (err) {
+    error.value = err?.response?.data?.message || err?.message || 'The authenticator code was not accepted.';
+    code.value = '';
   } finally {
-    loading.value = false;
+    submitting.value = false;
   }
 }
 
-/** ───────────────────────────────────────────────────────────
- *  Lifecycle
- *  ─────────────────────────────────────────────────────────── */
-onMounted(async () => {
-  debug.value.url = window.location.href;
-  debug.value.cookies = document.cookie;
+async function signOut() {
+  await signOutSupabase().catch(() => undefined);
+  window.location.assign('/login');
+}
 
-  await bootstrapStatus('before');
-
-  otpTicket.value = hasOtpTicketCookie();
-
-  // If we’ve got a ticket (common via Google OAuth), auto-send a code.
-  if (otpTicket.value) {
-    try {
-      await sendCode();
-    } catch { /* non-blocking */ }
-  }
-
-  uiState.value = 'ready';
-});
+onMounted(initialise);
 </script>
 
 <style scoped>
-.verify-2fa { display:grid; place-items:center; padding:2rem; }
-.card { width:min(560px, 94vw); }
-.title { margin: 0 0 .75rem; }
-
-.muted { color: var(--bb-muted); }
-
-.hint { display:grid; gap:.5rem; margin:.5rem 0 1rem; }
-.send-row { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
-
-.form { display:grid; gap:.75rem; margin-top:.75rem; }
-.code-input {
-  letter-spacing:.25em;
-  text-align:center;
-  font-weight:700;
-  font-size:1.15rem;
-}
-.trust { display:flex; gap:.5rem; align-items:center; font-size:.95rem; color:var(--bb-muted); }
-
-.ok { color:#1db954; font-weight:600; }
-.err { color:#ff6b6b; font-weight:600; }
-
-.debug { margin-top:1rem; }
-pre {
-  white-space:pre-wrap;
-  word-break:break-word;
-  background: var(--bb-surface-2, #0a0a0a);
-  border:1px dashed var(--bb-border, #333);
-  padding:.75rem; border-radius:10px;
-}
-
-/* Brand helpers if not already globally present */
-.bb-card {
-  background: var(--bb-surface, #111);
-  border:1px solid var(--bb-border, #222);
-  border-radius:12px;
-  padding:1.25rem;
-  box-shadow: var(--bb-shadow-sm);
-}
-.bb-btn { border-radius: 10px; padding:.7rem 1rem; font-weight:700; border:1px solid transparent; cursor:pointer; }
-.bb-btn--primary { background: var(--bb-primary, #17b169); color:#001; }
-.bb-btn--primary[disabled] { opacity:.6; cursor:not-allowed; }
-.bb-btn--ghost { background: transparent; color: var(--bb-text); border-color: var(--bb-border); }
-.bb-input {
-  background: var(--bb-surface, #0b0b0b);
-  border:1px solid var(--bb-border, #333);
-  border-radius:10px;
-  padding:.9rem 1rem;
-}
-.mt-2 { margin-top:.5rem; }
+.mfa-shell{display:grid;place-items:start center;min-height:64vh;padding:2.5rem 1rem}.mfa-card{width:min(520px,100%);box-sizing:border-box;padding:1.5rem;border:1px solid var(--bb-border);border-radius:18px;background:var(--bb-surface);box-shadow:var(--bb-shadow-md);text-align:left}.eyebrow{margin:0 0 .45rem;color:var(--bb-primary-light);font-size:.78rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase}.muted,.setup p{color:var(--bb-muted);line-height:1.55}.setup{text-align:center}.setup p,.setup details{text-align:left}.qr{display:block;width:min(260px,80%);margin:1.25rem auto;padding:.6rem;border-radius:12px;background:white}.mfa-card form{display:grid;gap:.75rem;margin-top:1.25rem}.mfa-card label{font-weight:750}.mfa-card input{width:100%;box-sizing:border-box;padding:.85rem;border:1px solid var(--bb-border);border-radius:10px;background:var(--bb-bg);color:var(--bb-text);font:inherit;font-size:1.2rem;font-weight:800;letter-spacing:.28em;text-align:center}.mfa-card button[type='submit']{min-height:46px;border:0;border-radius:10px;background:var(--bb-primary-dark);color:white;font:inherit;font-weight:800;cursor:pointer}.mfa-card button:disabled{opacity:.6;cursor:wait}.error{color:#ff7070;font-weight:700}.link-button{margin-top:.75rem;padding:0;border:0;background:transparent;color:var(--bb-muted);text-decoration:underline;cursor:pointer}details{margin-top:1rem}code{display:block;overflow-wrap:anywhere;padding:.7rem;border-radius:8px;background:var(--bb-bg);color:var(--bb-text)}
 </style>
