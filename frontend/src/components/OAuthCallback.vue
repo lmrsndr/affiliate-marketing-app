@@ -1,128 +1,63 @@
 <template>
   <div class="loading-screen">
-    <h2>Authenticating...</h2>
-    <p>Please wait while we log you in.</p>
-
-    <div class="profile-section" v-if="user">
-      <img :src="user.profilePicture || defaultAvatar" alt="Profile Picture" class="profile-pic" />
-      <input type="file" @change="uploadProfilePicture" accept="image/*" />
-      <button @click="deleteProfilePicture">Remove Picture</button>
-    </div>
+    <h2>Signing you in…</h2>
+    <p>Please wait while BundleBee confirms your administrator session.</p>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from "vue";
-import { useRouter, useRoute } from "vue-router";
-import API, { getNextAuthStep, checkAuthStatus, setAccessToken } from "../api.js";
+<script setup>
+import { onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { checkAuthStatus, getNextAuthStep, setAccessToken } from "../api.js";
 
-export default {
-  name: "OAuthCallback",
-  setup() {
-    const router = useRouter();
-    const route  = useRoute();
+const router = useRouter();
+const route = useRoute();
 
-    const user = ref(null);
-    const apiBase = (API.defaults.baseURL || "http://localhost:5000/api").replace(/\/+$/, "");
-    const defaultAvatar = `${apiBase}/user/profile-picture/generic_avatar.png`;
+function safeInternalRedirect(value) {
+  if (!value) return "";
+  let path = String(value);
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    return "";
+  }
 
-    // sanitize ?redirect= (internal paths only, not auth pages)
-    function sanitizeRedirect(path) {
-      if (!path) return "";
-      try { path = decodeURIComponent(String(path)); } catch (_) {}
-      if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("//")) return "";
-      if (!path.startsWith("/")) return "";
-      const blocked = ["/login", "/auth/callback", "/verify-2fa", "/setup-2fa"];
-      return blocked.includes(path) ? "" : path;
+  if (!path.startsWith("/") || path.startsWith("//")) return "";
+  if (["/login", "/auth/callback", "/verify-2fa", "/setup-2fa"].includes(path)) return "";
+  return path;
+}
+
+onMounted(async () => {
+  const requestedRedirect = safeInternalRedirect(route.query.redirect);
+
+  try {
+    const next = await getNextAuthStep();
+    if (next.step === "login") {
+      return router.replace({ path: "/login", query: { reason: "callback-session-missing" } });
     }
-    const safeRedirect = sanitizeRedirect(route.query.redirect);
+    if (next.step === "verify-2fa") {
+      return router.replace({ path: "/verify-2fa", query: { redirect: requestedRedirect || "/admin" } });
+    }
 
-    onMounted(async () => {
-      try {
-        // 1) Ask server what the next step is (prevents loops on callback)
-        const next = await getNextAuthStep(); // { step: "login"|"verify-2fa"|"setup-2fa"|"dashboard", redirectTo? }
-        if (!next || !next.step) throw new Error("Invalid /auth/next response");
+    const status = await checkAuthStatus();
+    if (!status?.user || !status?.mfaVerified) {
+      return router.replace({ path: "/login", query: { reason: "status-mismatch" } });
+    }
+    if (status.accessToken) setAccessToken(status.accessToken);
 
-        if (next.step === "login") {
-          return router.replace({ path: "/login", query: { reason: "callback-session-missing" } });
-        }
-        if (next.step === "verify-2fa") {
-          return router.replace({ path: "/verify-2fa", query: { redirect: safeRedirect || undefined } });
-        }
-        if (next.step === "setup-2fa") {
-          return router.replace({ path: "/setup-2fa", query: { redirect: safeRedirect || undefined, ...route.query } });
-        }
-
-        // 2) Server says we're good → confirm and capture short-lived token (memory only)
-        const status = await checkAuthStatus(); // { isAuthenticated, user, accessToken? }
-        if (!status?.isAuthenticated) {
-          return router.replace({ path: "/login", query: { reason: "status-mismatch" } });
-        }
-        if (status?.accessToken) setAccessToken(status.accessToken);
-
-        // 3) Optional: show profile while we redirect
-        try {
-          const profile = await API.get("/user/profile");
-          user.value = {
-            email: profile.data.email,
-            profilePicture: profile.data.profilePicture || defaultAvatar,
-          };
-        } catch (_) {
-          /* non-blocking */
-        }
-
-        // 4) Role-based fallback + safe redirect
-        const role = status?.user?.role;
-        const fallback =
-          role === "admin"   ? "/admin-dashboard"   :
-          role === "partner" ? "/partner-dashboard" : "/dashboard";
-
-        router.replace(safeRedirect || next.redirectTo || fallback);
-      } catch (err) {
-        console.error("❌ OAuth callback failed:", err?.response?.data || err.message);
-        router.replace({ path: "/login", query: { reason: "callback-error" } });
-      }
-    });
-
-    const uploadProfilePicture = async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append("profilePicture", file);
-
-      try {
-        const { data } = await API.post("/user/upload-profile-picture", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (!user.value) user.value = {};
-        user.value.profilePicture = data.profilePicture || defaultAvatar;
-      } catch (error) {
-        console.error("❌ Error uploading profile picture:", error?.response?.data || error.message);
-      }
-    };
-
-    const deleteProfilePicture = async () => {
-      try {
-        await API.delete("/user/delete-profile-picture");
-        if (!user.value) user.value = {};
-        user.value.profilePicture = defaultAvatar;
-      } catch (error) {
-        console.error("❌ Error deleting profile picture:", error?.response?.data || error.message);
-      }
-    };
-
-    return {
-      user,
-      defaultAvatar,
-      uploadProfilePicture,
-      deleteProfilePicture,
-    };
-  },
-};
+    const destination = status.user.role === "admin" ? requestedRedirect || "/admin" : "/";
+    return router.replace(destination);
+  } catch (error) {
+    console.error("OAuth callback failed:", error?.response?.data || error?.message);
+    return router.replace({ path: "/login", query: { reason: "callback-error" } });
+  }
+});
 </script>
 
 <style scoped>
-.loading-screen { text-align: center; margin-top: 50px; }
-.profile-pic { width: 100px; height: 100px; object-fit: cover; border-radius: 50%; margin-bottom: 10px; }
+.loading-screen {
+  margin: 4rem auto;
+  max-width: 32rem;
+  text-align: center;
+}
 </style>
