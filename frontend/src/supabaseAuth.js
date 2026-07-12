@@ -1,10 +1,18 @@
 const RAW_SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || "").trim();
 const SUPABASE_URL = (() => {
-  const value = RAW_SUPABASE_URL.replace(/\/+$/, "");
+  let value = RAW_SUPABASE_URL.trim();
   if (!value) return "";
-  if (/^https:\/\//i.test(value)) return value;
-  if (/^[a-z0-9-]+$/i.test(value)) return `https://${value}.supabase.co`;
-  return value;
+  if (!/^https?:\/\//i.test(value)) {
+    if (/^[a-z0-9-]+$/i.test(value)) value = `https://${value}.supabase.co`;
+    else value = `https://${value}`;
+  }
+
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.hostname}`;
+  } catch {
+    return value.replace(/\/(?:rest|auth|storage|functions)\/v\d+.*$/i, "").replace(/\/+$/, "");
+  }
 })();
 const SUPABASE_KEY = String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "").trim();
 const SESSION_KEY = "bundlebee.supabase.session";
