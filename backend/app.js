@@ -86,20 +86,17 @@ app.get("/", (_req, res) => res.send("BundleBee API is reachable. Try /api/healt
 
 app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
+// Authentication and administrator security.
 app.use("/auth", require("./routes/googleAuthRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/auth/local", require("./routes/localAuthRoutes"));
-app.use("/api/admin", require("./routes/adminRoutes"));
-app.use("/api/partner", require("./routes/partnerRoutes"));
+app.use("/api/2fa-email", require("./routes/email2FARoutes"));
+app.use("/api/2fa-app", require("./routes/totpRoutes"));
+
+// Active shopping platform plus temporary legacy catalogue compatibility.
 app.use("/api/boxes", require("./routes/boxRoutes"));
 app.use("/api", require("./routes/subscriptionRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
-app.use("/api/user", require("./routes/userRoutes"));
-app.use("/api/quiz", require("./routes/quizRoutes"));
-app.use("/api/interactions", require("./routes/interactionRoutes"));
-app.use("/api/2fa-email", require("./routes/email2FARoutes"));
-app.use("/api/accounting", require("./routes/accountingRoutes"));
-app.use("/api/2fa-app", require("./routes/totpRoutes"));
 
 app.use((req, res) => {
   res.status(404).json({ message: "API route not found" });
