@@ -2,15 +2,10 @@ require("dotenv").config();
 
 const required = [
   "MONGO_URI",
-  "SESSION_SECRET",
-  "JWT_SECRET",
-  "JWT_REFRESH_SECRET",
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET",
-  "GOOGLE_REDIRECT_URI",
   "SUPABASE_URL",
   "SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SECRET_KEY",
+  "BUNDLEBEE_ADMIN_EMAILS",
 ];
 
 for (const key of required) {
@@ -22,25 +17,23 @@ for (const key of required) {
 const nodeEnv = process.env.NODE_ENV || "development";
 const frontendOrigin = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 const portValue = Number(process.env.PORT || 5000);
+const adminEmails = new Set(
+  String(process.env.BUNDLEBEE_ADMIN_EMAILS || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+);
 
 module.exports = {
   nodeEnv,
   isProduction: nodeEnv === "production",
   port: Number.isFinite(portValue) ? portValue : 5000,
   mongoUri: process.env.MONGO_URI,
-  sessionSecret: process.env.SESSION_SECRET,
-  jwtSecret: process.env.JWT_SECRET,
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
-  jwtOtpSecret: process.env.JWT_OTP_SECRET || process.env.JWT_SECRET,
-  googleClientId: process.env.GOOGLE_CLIENT_ID,
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI,
   supabaseUrl: process.env.SUPABASE_URL.replace(/\/+$/, ""),
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY,
+  adminEmails,
   frontendOrigin,
-  cookieDomain: process.env.COOKIE_DOMAIN || "",
-  cookieName: process.env.COOKIE_NAME || "sid",
   corsOrigins: (process.env.CORS_ORIGINS || "")
     .split(",")
     .map((value) => value.trim())
