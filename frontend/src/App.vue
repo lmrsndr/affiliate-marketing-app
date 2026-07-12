@@ -9,10 +9,13 @@
         <router-link to="/admin">Admin</router-link>
       </nav>
 
-      <button class="bb-btn bb-btn--ghost bb-toggle" @click="toggleTheme" :aria-pressed="isDark.toString()">
-        <span v-if="isDark">☀️ Light</span>
-        <span v-else>🌙 Dark</span>
-      </button>
+      <div class="bb-actions">
+        <button v-if="isSignedIn" class="bb-btn bb-btn--ghost bb-signout" @click="signOut">Sign out</button>
+        <button class="bb-btn bb-btn--ghost bb-toggle" @click="toggleTheme" :aria-pressed="isDark.toString()">
+          <span v-if="isDark">☀️ Light</span>
+          <span v-else>🌙 Dark</span>
+        </button>
+      </div>
     </header>
 
     <main class="bb-main">
@@ -23,6 +26,7 @@
 
 <script>
 import { ref, onMounted } from "vue";
+import { getSupabaseSession, signOutSupabase } from "@/supabaseAuth";
 
 import "@/css/brand.css";
 import "@/css/light.css";
@@ -33,6 +37,7 @@ export default {
   setup() {
     const THEME_KEY = "bbTheme";
     const isDark = ref(false);
+    const isSignedIn = ref(false);
 
     const setTheme = (mode) => {
       isDark.value = mode === "dark";
@@ -43,14 +48,24 @@ export default {
 
     const toggleTheme = () => setTheme(isDark.value ? "light" : "dark");
 
-    onMounted(() => {
+    const signOut = async () => {
+      await signOutSupabase().catch(() => undefined);
+      isSignedIn.value = false;
+      window.location.assign("/");
+    };
+
+    onMounted(async () => {
       const saved = localStorage.getItem(THEME_KEY);
-      if (saved === "light" || saved === "dark") return setTheme(saved);
-      const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-      setTheme(prefersDark ? "dark" : "light");
+      if (saved === "light" || saved === "dark") setTheme(saved);
+      else {
+        const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+        setTheme(prefersDark ? "dark" : "light");
+      }
+
+      isSignedIn.value = Boolean(await getSupabaseSession().catch(() => null));
     });
 
-    return { isDark, toggleTheme };
+    return { isDark, isSignedIn, signOut, toggleTheme };
   },
 };
 </script>
@@ -62,8 +77,8 @@ export default {
 .bb-nav { display:flex; justify-content:center; gap:1rem; }
 .bb-nav a { color:var(--bb-text); text-decoration:none; font-weight:650; }
 .bb-nav a:hover,.bb-nav a.router-link-active { color:var(--bb-primary-light); }
-.bb-toggle { font-size:.9rem; padding:.5rem .75rem; border:1px solid var(--bb-border); border-radius:var(--bb-radius); }
+.bb-actions{display:flex;align-items:center;gap:.5rem}.bb-toggle,.bb-signout { font-size:.9rem; padding:.5rem .75rem; border:1px solid var(--bb-border); border-radius:var(--bb-radius); }
 .bb-main { flex-grow:1; width:min(1180px,calc(100% - 28px)); box-sizing:border-box; padding:20px; background:var(--bb-surface); box-shadow:var(--bb-shadow-sm); border-radius:var(--bb-radius); margin:20px auto; }
 body { font-family:var(--bb-font-body); margin:0; padding:0; background-color:var(--bb-bg); color:var(--bb-text); }
-@media(max-width:680px){ .bb-header{grid-template-columns:1fr auto}.bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto}.bb-main{width:min(100% - 16px,1180px);padding:12px;margin:10px auto} }
+@media(max-width:680px){ .bb-header{grid-template-columns:1fr auto}.bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto}.bb-actions{grid-column:2;grid-row:1}.bb-main{width:min(100% - 16px,1180px);padding:12px;margin:10px auto} }
 </style>
