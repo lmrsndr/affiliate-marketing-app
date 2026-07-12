@@ -19,60 +19,48 @@ router.get(
   }),
   async (req, res) => {
     try {
-      const cookieOptions = authCookieOptions(req);
-      const requires2FA = Boolean(req.user?.twoFA?.enabled || req.user?.email2FA?.enabled);
-
-      if (requires2FA) {
-        res.clearCookie("authCookie", cookieOptions);
-        res.clearCookie("refreshCookie", cookieOptions);
-
-        await User.updateOne(
-          { _id: req.user._id },
-          { $set: { "email2FA.verified": false } }
-        ).catch((error) => console.warn("Unable to reset email 2FA state:", error.message));
-
-        const preRefresh = jwt.sign(
-          {
-            id: req.user._id,
-            role: req.user.role,
-            mfaVerified: false,
-            purpose: "pre2fa",
-          },
-          runtime.jwtRefreshSecret,
-          { expiresIn: "30m" }
-        );
-
-        const otpTicket = jwt.sign(
-          { sub: String(req.user._id), purpose: "otp" },
-          runtime.jwtOtpSecret,
-          { expiresIn: "5m" }
-        );
-
-        res.cookie("refreshCookie", preRefresh, authCookieOptions(req, { maxAge: 30 * 60 * 1000 }));
-        res.cookie("otpTicket", otpTicket, authCookieOptions(req, { maxAge: 5 * 60 * 1000 }));
-        return res.redirect(redirectToFrontend("/setup-2fa?oauth=1"));
+      if (req.user?.role !== "admin") {
+        return res.redirect(redirectToFrontend("/?error=admin-only"));
       }
 
-      const accessToken = jwt.sign(
+      const cookieOptions = authCookieOptions(req);
+
+      // Google proves the primary identity only. Administrators must still
+      // complete BundleBee email 2FA before receiving a full session.
+      await User.updateOne(
+        { _id: req.user._id },
+        {
+          $set: {
+            "email2FA.enabled": true,
+            "email2FA.verified": false,
+            twoFAVerified: false,
+          },
+        }
+      );
+
+      res.clearCookie("authCookie", cookieOptions);
+      res.clearCookie("refreshCookie", cookieOptions);
+
+      const preRefresh = jwt.sign(
         {
           id: req.user._id,
-          email: req.user.email,
           role: req.user.role,
-          mfaVerified: true,
+          mfaVerified: false,
+          purpose: "pre2fa",
         },
-        runtime.jwtSecret,
-        { expiresIn: "15m" }
-      );
-
-      const refreshToken = jwt.sign(
-        { id: req.user._id, role: req.user.role, mfaVerified: true },
         runtime.jwtRefreshSecret,
-        { expiresIn: "7d" }
+        { expiresIn: "30m" }
       );
 
-      res.cookie("authCookie", accessToken, authCookieOptions(req, { maxAge: 15 * 60 * 1000 }));
-      res.cookie("refreshCookie", refreshToken, authCookieOptions(req, { maxAge: 7 * 24 * 60 * 60 * 1000 }));
-      return res.redirect(redirectToFrontend("/auth/callback"));
+      const otpTicket = jwt.sign(
+        { sub: String(req.user._id), purpose: "otp" },
+        runtime.jwtOtpSecret,
+        { expiresIn: "5m" }
+      );
+
+      res.cookie("refreshCookie", preRefresh, authCookieOptions(req, { maxAge: 30 * 60 * 1000 }));
+      res.cookie("otpTicket", otpTicket, authCookieOptions(req, { maxAge: 5 * 60 * 1000 }));
+      return res.redirect(redirectToFrontend("/verify-2fa"));
     } catch (error) {
       console.error("Google OAuth callback failed:", error);
       return res.redirect(redirectToFrontend("/login?error=server"));
