@@ -15,7 +15,7 @@ The active product is deliberately small:
 - one protected administrator workspace
 - products, brands, collections and affiliate-programme management
 
-Legacy customer dashboards, partner subscriptions, accounting screens, reviews and the recommendation quiz remain hidden from the active navigation while the shopping platform is established.
+The old customer dashboard, partner subscription platform, accounting system, reviews and subscription quiz have been retired from the running application.
 
 ## Technology
 
@@ -39,11 +39,11 @@ The old `SubscriptionBox` model remains temporarily for migration compatibility.
 ```text
 frontend/                         Vue/Vite public site and administrator UI
 backend/server.js                 process startup only
-backend/app.js                    Express middleware and route mounting
+backend/app.js                    Express middleware and active route mounting
 backend/config/runtime.js         validated runtime configuration
 backend/config/http.js            CORS and cookie policy
 backend/config/passport.js        Google Passport strategy
-backend/models/                   Mongoose models
+backend/models/                   active Mongoose models
 backend/routes/googleAuthRoutes.js
 backend/routes/shoppingRoutes.js
 backend/scripts/migrate-subscription-boxes-to-products.js
@@ -80,8 +80,6 @@ npm --prefix frontend ci
 npm --prefix backend ci
 ```
 
-The backend currently pins Multer to `1.4.4` because `multer-gridfs-storage` has an outdated peer dependency. This remains compatibility debt until the old upload/accounting path is retired or replaced.
-
 ## Run locally
 
 Terminal 1:
@@ -117,7 +115,13 @@ Build the frontend:
 npm --prefix frontend run build
 ```
 
-GitHub Actions runs both checks for pushes to `main` and for pull requests.
+GitHub Actions is configured to run both checks for pushes to `main` and for pull requests.
+
+## Authentication
+
+Public visitors do not need accounts. Local self-registration is disabled.
+
+Only administrators can use the local login and access `/admin`. Google OAuth remains available; non-administrator Google users are returned to the public site.
 
 ## Shopping API
 
@@ -196,8 +200,7 @@ After migration, log in at `/admin`, review each brand and product, then publish
 
 ## Known technical debt
 
-- Legacy partner, customer, accounting, quiz and review code is still present but hidden.
 - Browser access-token persistence should eventually be removed in favour of cookie-only authentication with CSRF protection.
 - API integration tests with a temporary MongoDB database and frontend component tests are still needed.
-- Old accounting/upload dependencies should be removed after the legacy routes are formally retired.
+- `package.json` and lock files still contain some dependencies from the retired accounting, upload and charting features. Remove them together in a dependency-only commit after a successful clean install/build.
 - Remaining investigation folders and backup files should be deleted after deployment stability is confirmed.
