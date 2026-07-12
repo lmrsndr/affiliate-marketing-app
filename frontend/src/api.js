@@ -28,15 +28,9 @@ API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error?.response?.status;
-    const reason = error?.response?.data?.reason;
     const path = window.location.pathname;
 
-    if (status === 403 && reason === "MFA_AAL2_REQUIRED" && path !== "/mfa") {
-      window.location.assign(`/mfa?redirect=${encodeURIComponent(path || "/admin")}`);
-      return Promise.reject(error);
-    }
-
-    if (status === 401 && !["/", "/login", "/mfa"].includes(path)) {
+    if (status === 401 && !["/", "/login", "/auth/callback"].includes(path)) {
       clearSupabaseSession();
       window.location.assign(`/login?reason=session-expired&redirect=${encodeURIComponent(path)}`);
     }
