@@ -15,7 +15,7 @@ The active product is deliberately small:
 - one protected administrator workspace
 - products, brands, collections and affiliate-programme management
 
-Legacy customer dashboards, partner subscriptions, accounting screens, reviews and the recommendation quiz remain in repository history but are hidden from the current navigation.
+Legacy customer dashboards, partner subscriptions, accounting screens, reviews and the recommendation quiz remain hidden from the active navigation while the shopping platform is established.
 
 ## Technology
 
@@ -37,11 +37,18 @@ The old `SubscriptionBox` model remains temporarily for migration compatibility.
 ## Project structure
 
 ```text
-frontend/                     Vue/Vite public site and administrator UI
-backend/models/               Mongoose models
+frontend/                         Vue/Vite public site and administrator UI
+backend/server.js                 process startup only
+backend/app.js                    Express middleware and route mounting
+backend/config/runtime.js         validated runtime configuration
+backend/config/http.js            CORS and cookie policy
+backend/config/passport.js        Google Passport strategy
+backend/models/                   Mongoose models
+backend/routes/googleAuthRoutes.js
 backend/routes/shoppingRoutes.js
 backend/scripts/migrate-subscription-boxes-to-products.js
-backend/server.js             Express entry point
+backend/tests/                    deterministic unit tests
+.github/workflows/ci.yml          backend checks and frontend production build
 ```
 
 ## Prerequisites
@@ -73,7 +80,7 @@ npm --prefix frontend ci
 npm --prefix backend ci
 ```
 
-The backend currently pins Multer to `1.4.4` because `multer-gridfs-storage` has an outdated peer dependency. This is compatibility debt and should eventually be replaced with a maintained GridFS or S3 upload path.
+The backend currently pins Multer to `1.4.4` because `multer-gridfs-storage` has an outdated peer dependency. This remains compatibility debt until the old upload/accounting path is retired or replaced.
 
 ## Run locally
 
@@ -98,19 +105,19 @@ Default addresses:
 
 ## Validation
 
-Backend syntax checks:
+Run backend unit tests and syntax checks:
 
 ```bash
 npm --prefix backend test
 ```
 
-Frontend production build:
+Build the frontend:
 
 ```bash
 npm --prefix frontend run build
 ```
 
-The backend test command currently performs deterministic JavaScript syntax validation. API integration tests still need to be added.
+GitHub Actions runs both checks for pushes to `main` and for pull requests.
 
 ## Shopping API
 
@@ -138,6 +145,8 @@ PUT            /api/admin/collections/:id
 GET/POST       /api/admin/affiliate-programmes
 PUT            /api/admin/affiliate-programmes/:id
 ```
+
+Shopping administration validates required fields, normalises slugs and tag lists, rejects negative prices, and rejects malformed or local/private retailer URLs.
 
 ## Migrating old subscription boxes
 
@@ -187,8 +196,8 @@ After migration, log in at `/admin`, review each brand and product, then publish
 
 ## Known technical debt
 
-- `backend/server.js` still contains duplicated historical authentication and CORS setup and needs a dedicated refactor.
-- Legacy partner, customer, accounting, quiz and review files are still present but hidden.
+- Legacy partner, customer, accounting, quiz and review code is still present but hidden.
 - Browser access-token persistence should eventually be removed in favour of cookie-only authentication with CSRF protection.
-- Real backend integration tests and frontend component tests are not yet present.
-- Historical backup and investigation files still need to be removed after the live deployment is confirmed stable.
+- API integration tests with a temporary MongoDB database and frontend component tests are still needed.
+- Old accounting/upload dependencies should be removed after the legacy routes are formally retired.
+- Remaining investigation folders and backup files should be deleted after deployment stability is confirmed.
