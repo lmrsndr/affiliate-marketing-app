@@ -1,5 +1,4 @@
 const runtime = require("../config/runtime");
-const LegacyUser = require("../models/User");
 
 function authHeaders(token, { admin = false } = {}) {
   const key = admin ? runtime.supabaseSecretKey : runtime.supabasePublishableKey;
@@ -35,51 +34,8 @@ async function supabaseRequest(path, { method = "GET", token = "", body, admin =
   return data;
 }
 
-function decodeJwtPayload(token) {
-  try {
-    const payload = String(token || "").split(".")[1];
-    if (!payload) return {};
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-    return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
-  } catch {
-    return {};
-  }
-}
-
-async function updateSupabaseUser(userId, updates) {
-  return supabaseRequest(`/admin/users/${encodeURIComponent(userId)}`, {
-    method: "PUT",
-    admin: true,
-    body: updates,
-  });
-}
-
-async function ensureAdminRole(user) {
-  if (user?.app_metadata?.role === "admin") return user;
-
-  const email = String(user?.email || "").trim().toLowerCase();
-  if (!email) return user;
-
-  const legacyAdmin = await LegacyUser.findOne({
-    email,
-    role: "admin",
-    suspended: { $ne: true },
-  }).select("email name");
-
-  if (!legacyAdmin) return user;
-
-  return updateSupabaseUser(user.id, {
-    app_metadata: {
-      ...(user.app_metadata || {}),
-      role: "admin",
-      migrated_from_bundlebee: true,
-    },
-    user_metadata: {
-      ...(user.user_metadata || {}),
-      name: user.user_metadata?.name || legacyAdmin.name || email.split("@")[0],
-    },
-  });
+function isApprovedAdminEmail(email) {
+  return runtime.adminEmails.has(String(email || "").trim().toLowerCase());
 }
 
 async function authenticateAccessToken(accessToken) {
@@ -89,62 +45,33 @@ async function authenticateAccessToken(accessToken) {
     throw error;
   }
 
-  let user = await supabaseRequest("/user", { token: accessToken });
-  user = await ensureAdminRole(user);
-  const claims = decodeJwtPayload(accessToken);
+  const user = await supabaseRequest("/user", { token: accessToken });
+  const approved = isApprovedAdminEmail(user?.email);
+
+  if (!approved) {
+    const error = new Error("This email is not approved for BundleBee administration");
+    error.status = 403;
+    throw error;
+  }
 
   return {
     user,
-    claims,
-    aal: claims.aal || "aal1",
-    role: user?.app_metadata?.role || "user",
+    role: "admin",
   };
 }
 
 async function listAdminUsers(page = 1, perPage = 100) {
-  return supabaseRequest(`/admin/users?page=${page}&per_page=${perPage}`, { admin: true });
-}
-
-async function createAdminUser({ email, password, name }) {
-  return supabaseRequest("/admin/users", {
-    method: "POST",
-    admin: true,
-    body: {
-      email,
-      password,
-      email_confirm: true,
-      app_metadata: { role: "admin" },
-      user_metadata: { name },
-    },
-  });
-}
-
-async function deleteSupabaseUser(userId) {
-  return supabaseRequest(`/admin/users/${encodeURIComponent(userId)}`, {
-    method: "DELETE",
-    admin: true,
-  });
-}
-
-async function listUserFactors(userId) {
-  return supabaseRequest(`/admin/users/${encodeURIComponent(userId)}/factors`, { admin: true });
-}
-
-async function deleteUserFactor(userId, factorId) {
-  return supabaseRequest(`/admin/users/${encodeURIComponent(userId)}/factors/${encodeURIComponent(factorId)}`, {
-    method: "DELETE",
-    admin: true,
-  });
+  const result = await supabaseRequest(`/admin/users?page=${page}&per_page=${perPage}`, { admin: true });
+  const users = Array.isArray(result?.users) ? result.users : [];
+  return {
+    ...result,
+    users: users.filter((user) => isApprovedAdminEmail(user.email)),
+  };
 }
 
 module.exports = {
   authenticateAccessToken,
-  createAdminUser,
-  decodeJwtPayload,
-  deleteSupabaseUser,
-  deleteUserFactor,
+  isApprovedAdminEmail,
   listAdminUsers,
-  listUserFactors,
   supabaseRequest,
-  updateSupabaseUser,
 };
