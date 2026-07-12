@@ -1,13 +1,16 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "BundleBee shopping catalogue API",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "check": "node --check server.js && node --check routes/shoppingRoutes.js && node --check models/Product.js && node --check models/Brand.js && node --check models/Collection.js && node --check models/AffiliateProgramme.js && node --check scripts/migrate-subscription-boxes-to-products.js",
+    "test": "npm run check",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "migrate:shopping": "node scripts/migrate-subscription-boxes-to-products.js"
   },
-  "keywords": [],
+  "keywords": ["affiliate", "shopping", "catalogue"],
   "author": "",
   "license": "ISC",
   "dependencies": {
