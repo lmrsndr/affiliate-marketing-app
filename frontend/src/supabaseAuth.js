@@ -28,10 +28,10 @@ function readStoredSession() {
   }
 }
 
-function normaliseSession(data) {
+function saveSession(data) {
   if (!data?.access_token) return null;
   const claims = decodeJwt(data.access_token);
-  return {
+  const session = {
     access_token: data.access_token,
     refresh_token: data.refresh_token || readStoredSession()?.refresh_token || "",
     token_type: data.token_type || "bearer",
@@ -39,11 +39,6 @@ function normaliseSession(data) {
     expires_at: Number(data.expires_at || claims.exp || Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600)),
     user: data.user || null,
   };
-}
-
-function saveSession(data) {
-  const session = normaliseSession(data);
-  if (!session) return null;
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   return session;
 }
@@ -66,28 +61,43 @@ async function authRequest(path, { method = "GET", token = "", body } = {}) {
 
   const text = await response.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!response.ok) {
     const error = new Error(data?.msg || data?.message || data?.error_description || data?.error || `Authentication failed (${response.status})`);
     error.status = response.status;
     error.data = data;
     throw error;
   }
-
   return data;
 }
 
-export async function signInWithPassword(email, password) {
-  const data = await authRequest("/token?grant_type=password", {
+export async function sendMagicLink(email) {
+  const redirectTo = `${window.location.origin}/auth/callback`;
+  await authRequest(`/otp?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
-    body: { email, password },
+    body: {
+      email: String(email || "").trim().toLowerCase(),
+      create_user: false,
+    },
   });
-  return saveSession(data);
+}
+
+export function consumeMagicLinkFromUrl() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const errorMessage = hash.get("error_description") || hash.get("error");
+  if (errorMessage) throw new Error(errorMessage);
+
+  const accessToken = hash.get("access_token");
+  if (!accessToken) return null;
+
+  const session = saveSession({
+    access_token: accessToken,
+    refresh_token: hash.get("refresh_token") || "",
+    token_type: hash.get("token_type") || "bearer",
+    expires_in: Number(hash.get("expires_in") || 3600),
+  });
+  window.history.replaceState({}, document.title, window.location.pathname);
+  return session;
 }
 
 export async function refreshSupabaseSession() {
@@ -96,7 +106,6 @@ export async function refreshSupabaseSession() {
     clearSupabaseSession();
     return null;
   }
-
   try {
     const data = await authRequest("/token?grant_type=refresh_token", {
       method: "POST",
@@ -112,7 +121,6 @@ export async function refreshSupabaseSession() {
 export async function getSupabaseSession({ refresh = true } = {}) {
   let session = readStoredSession();
   if (!session?.access_token) return null;
-
   const expiresSoon = Number(session.expires_at || 0) <= Math.floor(Date.now() / 1000) + 60;
   if (refresh && expiresSoon) session = await refreshSupabaseSession();
   return session;
@@ -122,66 +130,13 @@ export async function getSupabaseAccessToken() {
   return (await getSupabaseSession())?.access_token || "";
 }
 
-export async function getSupabaseUser() {
-  const session = await getSupabaseSession();
-  if (!session?.access_token) return null;
-  const user = await authRequest("/user", { token: session.access_token });
-  session.user = user;
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return user;
-}
-
 export async function signOutSupabase() {
   const session = readStoredSession();
   try {
-    if (session?.access_token) {
-      await authRequest("/logout", { method: "POST", token: session.access_token });
-    }
+    if (session?.access_token) await authRequest("/logout", { method: "POST", token: session.access_token });
   } finally {
     clearSupabaseSession();
   }
-}
-
-export async function enrollTotp(friendlyName = "BundleBee administrator") {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error("Sign in again before setting up MFA.");
-  return authRequest("/factors", {
-    method: "POST",
-    token,
-    body: { factor_type: "totp", friendly_name: friendlyName },
-  });
-}
-
-export async function challengeTotp(factorId) {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error("Sign in again before verifying MFA.");
-  return authRequest(`/factors/${encodeURIComponent(factorId)}/challenge`, {
-    method: "POST",
-    token,
-    body: {},
-  });
-}
-
-export async function verifyTotp(factorId, challengeId, code) {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error("Sign in again before verifying MFA.");
-  const data = await authRequest(`/factors/${encodeURIComponent(factorId)}/verify`, {
-    method: "POST",
-    token,
-    body: { challenge_id: challengeId, code },
-  });
-
-  if (data?.access_token) saveSession(data);
-  return data;
-}
-
-export async function challengeAndVerifyTotp(factorId, code) {
-  const challenge = await challengeTotp(factorId);
-  return verifyTotp(factorId, challenge.id, code);
-}
-
-export function sessionClaims(session = readStoredSession()) {
-  return decodeJwt(session?.access_token || "");
 }
 
 export function hasSupabaseConfiguration() {
