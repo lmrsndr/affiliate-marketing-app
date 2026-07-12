@@ -22,6 +22,8 @@ const affiliateProgrammeSchema = new mongoose.Schema(
     paymentThreshold: { type: Number, default: null },
     contactEmail: { type: String, default: "", trim: true, lowercase: true },
     termsUrl: { type: String, default: "", trim: true },
+    lastCheckedAt: { type: Date, default: null, index: true },
+    nextCheckDueAt: { type: Date, default: null, index: true },
     notes: { type: String, default: "" },
     active: { type: Boolean, default: true, index: true },
   },
