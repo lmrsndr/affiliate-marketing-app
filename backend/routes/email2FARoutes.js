@@ -1,28 +1,37 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-const otpOrRefresh = require('../middleware/otpOrRefreshMiddleware');
-const email2FAController = require('../controllers/email2FAController');
+const otpOrRefresh = require("../middleware/otpOrRefreshMiddleware");
+const email2FAController = require("../controllers/email2FAController");
 
-let attachUserIfPresent = (_r,_s,n)=>n();
-try { attachUserIfPresent = require('../middleware/attachUserIfPresent'); } catch{}
-
-// Block if already verified
-const pending2FAOnly = (req,res,next)=>{
-  if (req.user?.twoFAVerified || req.auth?.mfaVerified || req.session?.twoFAVerified) {
-    return res.status(409).json({ msg: "2FA already verified." });
-  }
-  next();
-};
-
-// Mint/refresh otpTicket (not behind otpOrRefresh)
-if (typeof email2FAController.createContext === "function") {
-  router.post('/context', attachUserIfPresent, pending2FAOnly, email2FAController.createContext);
+let attachUserIfPresent = (_req, _res, next) => next();
+try {
+  attachUserIfPresent = require("../middleware/attachUserIfPresent");
+} catch (_error) {
+  // Optional compatibility middleware.
 }
 
-// Pre-MFA email 2FA flow
-router.post('/send',   otpOrRefresh,pending2FAOnly,  pending2FAOnly, email2FAController.sendEmail2FACode);
-router.post('/resend', otpOrRefresh,pending2FAOnly,  pending2FAOnly, (email2FAController.resendEmail2FACode || email2FAController.sendEmail2FACode));
-router.post('/verify', otpOrRefresh,pending2FAOnly,  pending2FAOnly, email2FAController.verifyEmail2FACode);
+// Only the token/session MFA claim is authoritative for this request.
+// The legacy user.twoFAVerified database flag may remain true from a previous
+// login and must not block a newly-created pre-MFA session.
+const pending2FAOnly = (req, res, next) => {
+  if (req.auth?.mfaVerified === true || req.session?.twoFAVerified === true) {
+    return res.status(409).json({ message: "2FA is already verified for this session." });
+  }
+  return next();
+};
+
+if (typeof email2FAController.createContext === "function") {
+  router.post("/context", attachUserIfPresent, pending2FAOnly, email2FAController.createContext);
+}
+
+router.post("/send", otpOrRefresh, pending2FAOnly, email2FAController.sendEmail2FACode);
+router.post(
+  "/resend",
+  otpOrRefresh,
+  pending2FAOnly,
+  email2FAController.resendEmail2FACode || email2FAController.sendEmail2FACode
+);
+router.post("/verify", otpOrRefresh, pending2FAOnly, email2FAController.verifyEmail2FACode);
 
 module.exports = router;
