@@ -5,6 +5,7 @@ const requireVerified2FA = require("../middleware/requireVerified2FA");
 const authController = require("../controllers/authController");
 const runtime = require("../config/runtime");
 const { authCookieOptions } = require("../config/http");
+const User = require("../models/User");
 
 const router = express.Router();
 
@@ -27,10 +28,14 @@ if (!runtime.isProduction) {
   });
 }
 
+function userHasEnabledMfa(user) {
+  return Boolean(user?.twoFA?.enabled || user?.email2FA?.enabled);
+}
+
 router.get("/status", attachUserIfPresent, (req, res) => {
   const user = req.user || res.locals.user || null;
-  const mfaVerified = Boolean(req.auth?.mfaVerified);
   const isAuthenticated = Boolean(user || req.auth?.isAuthenticated);
+  const mfaVerified = Boolean(req.auth?.mfaVerified && userHasEnabledMfa(user));
 
   let accessToken = null;
   if (isAuthenticated && mfaVerified && user?._id) {
@@ -52,14 +57,24 @@ router.get("/status", attachUserIfPresent, (req, res) => {
 });
 
 router.get("/next", attachUserIfPresent, (req, res) => {
-  if (!req.auth?.isAuthenticated) return res.json({ ok: true, next: "login" });
-  if (!req.auth?.mfaVerified) return res.json({ ok: true, next: "verify-2fa" });
+  const user = req.user || res.locals.user || null;
+  if (!req.auth?.isAuthenticated || !user) {
+    return res.json({ ok: true, next: "login" });
+  }
+
+  const mfaVerified = Boolean(req.auth?.mfaVerified && userHasEnabledMfa(user));
+  if (!mfaVerified) return res.json({ ok: true, next: "verify-2fa" });
   return res.json({ ok: true, next: "dashboard" });
 });
 
 router.get("/enabled-views", attachUserIfPresent, (req, res) => {
-  if (!req.auth?.isAuthenticated || !req.auth?.mfaVerified || !req.user) {
+  if (!req.auth?.isAuthenticated || !req.user) {
     return res.status(401).json({ ok: false, message: "Unauthorized" });
+  }
+
+  const mfaVerified = Boolean(req.auth?.mfaVerified && userHasEnabledMfa(req.user));
+  if (!mfaVerified) {
+    return res.status(403).json({ ok: false, message: "MFA required", reason: "MFA_REQUIRED" });
   }
 
   const enabledViews = [];
@@ -67,7 +82,7 @@ router.get("/enabled-views", attachUserIfPresent, (req, res) => {
   return res.json({ ok: true, enabledViews });
 });
 
-router.post("/refresh", (req, res) => {
+router.post("/refresh", async (req, res) => {
   try {
     const refresh = req.cookies?.refreshCookie;
     if (!refresh) {
@@ -79,8 +94,16 @@ router.post("/refresh", (req, res) => {
       return res.status(403).json({ ok: false, reason: "mfa_not_verified", message: "MFA is required" });
     }
 
+    const user = await User.findById(payload.id).select("role twoFA email2FA");
+    if (!user) {
+      return res.status(401).json({ ok: false, reason: "user_not_found", message: "Session user no longer exists" });
+    }
+    if (!userHasEnabledMfa(user)) {
+      return res.status(403).json({ ok: false, reason: "mfa_setup_required", message: "MFA must be configured" });
+    }
+
     const accessToken = jwt.sign(
-      { id: payload.id, role: payload.role, mfaVerified: true },
+      { id: user._id, role: user.role, mfaVerified: true },
       runtime.jwtSecret,
       { expiresIn: "15m" }
     );
