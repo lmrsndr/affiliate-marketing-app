@@ -1,58 +1,40 @@
-// Build tag for quick diagnostics
-window.__BB_API_BUILD = "api.js unified 2025-09-11";
-console.info("[BB] api.js loaded:", window.__BB_API_BUILD);
-
 import axios from "axios";
 
-/* ──────────────────────────────────────────────────────────────
-   Base config
-────────────────────────────────────────────────────────────── */
-if (!import.meta.env.VITE_API_URL) {
-  console.warn("⚠️ Missing VITE_API_URL in environment variables!");
-}
-// IMPORTANT: VITE_API_URL should point to your backend API root, e.g. http://localhost:5000/api
 const safeBaseURL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/+$/, "");
 
 const API = axios.create({
   baseURL: safeBaseURL,
-  withCredentials: true, // <-- send/receive cookies
+  withCredentials: true,
 });
+
 export default API;
 
-/* ──────────────────────────────────────────────────────────────
-   Token helpers (optional header token; server mainly uses cookies)
-────────────────────────────────────────────────────────────── */
-export function setAccessToken(token, { persist = "both" } = {}) {
+export function setAccessToken(token) {
   if (!token) {
     sessionStorage.removeItem("accessToken");
     localStorage.removeItem("accessToken");
-    delete API.defaults.headers.common["Authorization"];
+    delete API.defaults.headers.common.Authorization;
     return;
   }
-  if (persist === "session" || persist === "both") sessionStorage.setItem("accessToken", token);
-  if (persist === "local"   || persist === "both") localStorage.setItem("accessToken", token);
-  API.defaults.headers.common["Authorization"] = "Bearer " + token;
-}
-function readAccessToken() {
-  return sessionStorage.getItem("accessToken") || localStorage.getItem("accessToken") || null;
-}
-function clearAccessToken() {
-  sessionStorage.removeItem("accessToken");
-  localStorage.removeItem("accessToken");
-  delete API.defaults.headers.common["Authorization"];
+
+  sessionStorage.setItem("accessToken", token);
+  API.defaults.headers.common.Authorization = `Bearer ${token}`;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Interceptors
-   - Prefer cookie-based auth. If /auth/refresh sets cookies
-     but does NOT return accessToken, we still retry the request.
-────────────────────────────────────────────────────────────── */
+function readAccessToken() {
+  return sessionStorage.getItem("accessToken") || null;
+}
+
+function clearAccessToken() {
+  setAccessToken(null);
+}
+
 API.interceptors.request.use(
   (config) => {
-    if (!config.headers) config.headers = {};
-    if (!config.headers.Authorization) {
-      const token = readAccessToken();
-      if (token) config.headers.Authorization = "Bearer " + token;
+    config.headers = config.headers || {};
+    const token = readAccessToken();
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -69,14 +51,9 @@ API.interceptors.response.use(
     const original = error?.config || {};
     const path = window.location.pathname;
 
-    // 403 → MFA/TOTP routing (avoid loops)
     if (status === 403) {
       const onVerify = path === "/verify-2fa" || path === "/setup-2fa";
-      if (
-        reason === "MFA_REQUIRED" ||
-        reason === "EMAIL_2FA_REQUIRED" ||
-        reason === "TOTP_REQUIRED"
-      ) {
+      if (["MFA_REQUIRED", "EMAIL_2FA_REQUIRED", "TOTP_REQUIRED"].includes(reason)) {
         if (!onVerify) window.location.assign("/verify-2fa");
         return Promise.reject(error);
       }
@@ -86,31 +63,26 @@ API.interceptors.response.use(
       }
     }
 
-    // Refresh once on 401, or on 403 that isn't an MFA/TOTP gating reason
     const shouldTryRefresh =
       status === 401 ||
-      (status === 403 &&
-        reason !== "MFA_REQUIRED" &&
-        reason !== "EMAIL_2FA_REQUIRED" &&
-        reason !== "TOTP_REQUIRED" &&
-        reason !== "TOTP_REQUIRED_SETUP");
+      (status === 403 && !["MFA_REQUIRED", "EMAIL_2FA_REQUIRED", "TOTP_REQUIRED", "TOTP_REQUIRED_SETUP"].includes(reason));
 
-    if (shouldTryRefresh && !original._retry) {
-      if (isRefreshing) return Promise.reject(error);
+    if (shouldTryRefresh && !original._retry && !isRefreshing) {
       original._retry = true;
       isRefreshing = true;
       try {
-        const { data } = await API.post("/auth/refresh"); // sets cookie; may or may not return token
-        if (data && data.accessToken) {
-          setAccessToken(data.accessToken, { persist: "both" });
+        const { data } = await API.post("/auth/refresh");
+        if (data?.accessToken) {
+          setAccessToken(data.accessToken);
           original.headers = original.headers || {};
-          original.headers.Authorization = "Bearer " + data.accessToken;
+          original.headers.Authorization = `Bearer ${data.accessToken}`;
         }
         return API.request(original);
-      } catch (_e) {
+      } catch (_refreshError) {
         clearAccessToken();
-        const isPublic = ["/", "/login", "/register"].includes(window.location.pathname);
-        if (!isPublic) window.location.assign("/login?reason=session-expired");
+        if (!["/", "/login"].includes(window.location.pathname)) {
+          window.location.assign("/login?reason=session-expired");
+        }
       } finally {
         isRefreshing = false;
       }
@@ -120,131 +92,55 @@ API.interceptors.response.use(
   }
 );
 
-/* ──────────────────────────────────────────────────────────────
-   Auth navigation helper (used by OAuthCallback.vue)
-────────────────────────────────────────────────────────────── */
+export async function checkAuthStatus() {
+  try {
+    const { data } = await API.get("/auth/status");
+    if (data?.accessToken) setAccessToken(data.accessToken);
+    return data;
+  } catch {
+    return { isAuthenticated: false, user: null, mfaVerified: false };
+  }
+}
+
 export async function getNextAuthStep() {
   try {
     const { data } = await API.get("/auth/next");
-    if (data && (data.step || data.next)) {
-      // Support either { step } or { next }
-      const step = data.step || data.next;
-      if (step === "login")       return { step, redirectTo: "/login" };
-      if (step === "verify-2fa")  return { step, redirectTo: "/verify-2fa" };
-      return { step: "dashboard", redirectTo: "/dashboard" };
-    }
-  } catch {
-    // fall through to /auth/status
-  }
+    const step = data?.step || data?.next;
+    if (step === "login") return { step, redirectTo: "/login" };
+    if (step === "verify-2fa") return { step, redirectTo: "/verify-2fa" };
 
-  try {
     const status = await checkAuthStatus();
-    if (!status || !status.user || !status.mfaVerified) {
-      return { step: "login", redirectTo: "/login" };
-    }
-    const role = status.user.role || "user";
-    if (role === "admin")   return { step: "dashboard", redirectTo: "/admin-dashboard" };
-    if (role === "partner") return { step: "dashboard", redirectTo: "/partner-dashboard" };
-    return { step: "dashboard", redirectTo: "/dashboard" };
+    if (!status?.user || !status?.mfaVerified) return { step: "login", redirectTo: "/login" };
+    return {
+      step: "dashboard",
+      redirectTo: status.user.role === "admin" ? "/admin" : "/",
+    };
   } catch {
     return { step: "login", redirectTo: "/login" };
   }
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Public Auth APIs
-   NOTE: backend now uses /auth/local/* for local auth
-────────────────────────────────────────────────────────────── */
-export async function checkAuthStatus() {
-  try {
-    const res = await API.get("/auth/status");
-    // If your API sometimes returns an accessToken in status, capture it; otherwise rely on cookies
-    if (res?.data?.accessToken) setAccessToken(res.data.accessToken, { persist: "both" });
-    return res.data;
-  } catch {
-    return { isAuthenticated: false };
-  }
-}
-
-export async function refreshToken() {
-  const res = await API.post("/auth/refresh", {});
-  if (res?.data?.accessToken) setAccessToken(res.data.accessToken, { persist: "both" });
-  return res.data;
-}
-
-// UPDATED paths for local auth:
-export async function registerUser(userData) {
-  // expects { email, password, name? }
-  const res = await API.post("/auth/local/register", userData);
-  // login is cookie-based; if server returns an accessToken, store it:
-  if (res?.data?.accessToken) setAccessToken(res.data.accessToken, { persist: "both" });
-  return res.data;
-}
-
 export async function loginUser(credentials) {
-  // expects { email, password }
-  const res = await API.post("/auth/local/login", credentials);
-  if (res?.data?.accessToken) setAccessToken(res.data.accessToken, { persist: "both" });
-  return res.data;
+  const { data } = await API.post("/auth/local/login", credentials);
+  if (data?.accessToken) setAccessToken(data.accessToken);
+  return data;
 }
 
 export async function logoutUser() {
-  await API.get("/auth/logout"); // server route is GET; clears cookies
-  setAccessToken(null);
-  window.location.assign("/login");
+  await API.get("/auth/logout");
+  clearAccessToken();
+  window.location.assign("/");
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Dashboards (unchanged)
-────────────────────────────────────────────────────────────── */
-export const fetchUserDashboard  = async () => (await API.get("/user/dashboard")).data;
-export const fetchAdminDashboard = async () => (await API.get("/admin/dashboard")).data;
-
-/* ──────────────────────────────────────────────────────────────
-   Subscriptions (unchanged)
-────────────────────────────────────────────────────────────── */
-export const fetchSubscriptions = async () => (await API.get("/subscriptions")).data;
-export const submitSubscriptionQuestionnaire = async (formData) =>
-  (await API.post("/subscriptions/questionnaire", formData)).data;
-
-/* ──────────────────────────────────────────────────────────────
-   Views (unchanged if backend route exists)
-────────────────────────────────────────────────────────────── */
-export const fetchEnabledViews = async () => (await API.get("/auth/enabled-views")).data.enabledViews;
-
-/* ──────────────────────────────────────────────────────────────
-   Admin / Partner (unchanged paths)
-────────────────────────────────────────────────────────────── */
-export const fetchAffiliatePartners = async () => (await API.get("/admin/affiliates")).data;
-
-export const fetchPartnerAnalytics = async (params = {}) => (await API.get("/partner/analytics", { params })).data;
-export const fetchPartnerComments  = async () => (await API.get("/partner/comments")).data;
-export const replyToComment        = async ({ commentId, reply }) =>
-  (await API.post("/partner/reply", { commentId, reply })).data;
-
-// Promotions
-export const uploadPromoImage = async (formData) =>
-  (await API.post("/partner/upload-ad", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
-export const uploadPromoVideo = async (formData) =>
-  (await API.post("/partner/promo/video", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
-
-// Subscription management
-export const getPartnerSubscription    = async () => (await API.get("/partner/subscription")).data;
-export const updatePartnerSubscription = async (tier) => (await API.put("/partner/subscription", { tier })).data;
-
-/* ──────────────────────────────────────────────────────────────
-   2FA (updated to match backend mounts: /2fa-email and /2fa-app)
-────────────────────────────────────────────────────────────── */
 export const email2FA = {
-  // server endpoints: /2fa-email/send, /2fa-email/resend, /2fa-email/verify
-  send:   async () => (await API.post("/2fa-email/send")).data,
+  send: async () => (await API.post("/2fa-email/send")).data,
   resend: async () => (await API.post("/2fa-email/resend")).data,
   verify: async ({ code, trustThisDevice = false }) =>
     (await API.post("/2fa-email/verify", { code, trustThisDevice })).data,
 };
 
 export const app2FA = {
-  setup:   async () => (await API.get("/2fa-app/setup")).data,
-  verify:  async (token) => (await API.post("/2fa-app/verify", { token })).data,
+  setup: async () => (await API.get("/2fa-app/setup")).data,
+  verify: async (token) => (await API.post("/2fa-app/verify", { token })).data,
   disable: async () => (await API.post("/2fa-app/disable")).data,
 };
