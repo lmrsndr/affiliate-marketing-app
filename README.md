@@ -1,230 +1,194 @@
-# BundleBee Affiliate Marketing App
+# BundleBee Shopping Discovery Platform
 
-This repository contains a Vue 3/Vite frontend and an Express/Mongoose backend.
+BundleBee is a curated UK shopping-discovery platform for useful, unusual and giftable products from independent and specialist brands.
 
-## Project Structure
+BundleBee does not take payment or fulfil orders. Visitors browse products and collections, then continue to the retailer through an affiliate link. BundleBee may earn commission from qualifying purchases at no extra cost to the customer.
 
-- `frontend/` - Vue 3 app built with Vite.
-- `backend/` - Express API using MongoDB through Mongoose.
+## Current product scope
+
+The active product is deliberately small:
+
+- public product catalogue
+- search, filtering and sorting
+- brands and curated collections
+- affiliate click tracking
+- one protected administrator workspace
+- products, brands, collections and affiliate-programme management
+
+Legacy customer dashboards, partner subscriptions, accounting screens, reviews and the recommendation quiz remain in repository history but are hidden from the current navigation.
+
+## Technology
+
+- Frontend: Vue 3 and Vite
+- Backend: Node.js and Express
+- Database: MongoDB through Mongoose
+- Authentication: local or Google login, secure cookies and administrator 2FA
+
+## Main data models
+
+- `Product`
+- `Brand`
+- `Category`
+- `Collection`
+- `AffiliateProgramme`
+
+The old `SubscriptionBox` model remains temporarily for migration compatibility.
+
+## Project structure
+
+```text
+frontend/                     Vue/Vite public site and administrator UI
+backend/models/               Mongoose models
+backend/routes/shoppingRoutes.js
+backend/scripts/migrate-subscription-boxes-to-products.js
+backend/server.js             Express entry point
+```
 
 ## Prerequisites
 
-- Node.js 20+ recommended.
-- npm 10+ recommended.
-- A reachable MongoDB database for the backend.
-- Google OAuth credentials if testing Google login.
+- Node.js 20 or newer
+- npm 10 or newer
+- MongoDB
+- Google OAuth credentials when Google login is enabled
 
-## Environment Files
-
-Backend:
+## Environment files
 
 ```bash
 cp backend/.env.example backend/.env
-```
-
-Frontend:
-
-```bash
 cp frontend/.env.example frontend/.env
 ```
 
-For local development, set `frontend/.env` to point at the backend API root:
+For local frontend development:
 
-```bash
+```env
 VITE_API_URL=http://localhost:5000/api
 ```
+
+Do not commit real credentials.
 
 ## Install
 
-Install each package separately:
-
 ```bash
 npm --prefix frontend ci
 npm --prefix backend ci
 ```
 
-Do not use `--force` for normal installation.
+The backend currently pins Multer to `1.4.4` because `multer-gridfs-storage` has an outdated peer dependency. This is compatibility debt and should eventually be replaced with a maintained GridFS or S3 upload path.
 
-### Backend Multer/GridFS Note
+## Run locally
 
-The backend currently uses `multer-gridfs-storage@5.0.2`, whose peer dependency is declared as `multer@^1.4.2`. The package has not been updated for the newer Multer LTS peer range, so npm may print a peer warning.
-
-The stabilisation change pins backend Multer to `1.4.4`, the latest non-prerelease version that satisfies `multer-gridfs-storage`'s stale peer range and allows `npm ci` without `--force` or `--legacy-peer-deps`.
-
-This is a temporary compatibility pin, not the proper long-term fix. `multer@1.4.4` is deprecated, and the long-term fix is to replace `multer-gridfs-storage` with a maintained upload path, such as direct `multer` memory/disk storage plus the MongoDB GridFS bucket API or S3, then upgrade to Multer 2.x.
-
-## Run Locally
-
-Start the backend:
+Terminal 1:
 
 ```bash
-npm --prefix backend run start
+npm --prefix backend start
 ```
 
-Start the frontend dev server in another terminal:
+Terminal 2:
 
 ```bash
 npm --prefix frontend run dev
 ```
 
-Default local URLs:
+Default addresses:
 
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:5000`
-- Backend health: `http://localhost:5000/api/health`
+- Health: `http://localhost:5000/api/health`
+- Readiness: `http://localhost:5000/api/ready`
 
-## Build
+## Validation
 
-Build the frontend:
-
-```bash
-npm --prefix frontend run build
-```
-
-The Vite production build output is `frontend/dist/`.
-
-## Deployment Notes
-
-This project is split into two deployable parts:
-
-- Frontend: static Vue/Vite site from `frontend/dist/`.
-- Backend: Node/Express API from `backend/server.js`.
-
-### Frontend Deployment
-
-Install and build from the repository root:
-
-```bash
-npm --prefix frontend ci
-npm --prefix frontend run build
-```
-
-Publish the generated `frontend/dist/` directory as the static site output. The frontend dev server is Vite and defaults to `http://localhost:5173`:
-
-```bash
-npm --prefix frontend run dev
-```
-
-Set `VITE_API_URL` at build time. It must point at the backend API root and include `/api`:
-
-```bash
-VITE_API_URL=https://api.example.com/api
-```
-
-For local development:
-
-```bash
-VITE_API_URL=http://localhost:5000/api
-```
-
-### Backend Deployment
-
-Install and start from the repository root:
-
-```bash
-npm --prefix backend ci
-npm --prefix backend run start
-```
-
-The backend start command runs:
-
-```bash
-node server.js
-```
-
-The backend listens on `PORT`, defaulting to `5000` when `PORT` is unset. It requires a reachable MongoDB database through `MONGO_URI`; startup exits if `MONGO_URI` or required auth secrets are missing.
-
-### Backend Environment Variables
-
-Required for backend startup:
-
-- `NODE_ENV`
-- `PORT`
-- `MONGO_URI`
-- `SESSION_SECRET`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI`
-
-Required for correct production browser/API behavior:
-
-- `FRONTEND_URL`
-- `CORS_ORIGINS`
-- `COOKIE_DOMAIN`
-- `COOKIE_NAME`
-
-Required for email delivery in production:
-
-- `EMAIL_ZOHO`
-- `PASS_ZOHO`
-
-Required for accounting receipt/invoice upload and signed URL features:
-
-- `AWS_REGION`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_S3_BUCKET_NAME`
-
-Optional or feature-specific:
-
-- `JWT_OTP_SECRET`
-- `EMAIL_USER`
-- `EMAIL_HOST`
-- `EMAIL_PORT`
-- `EMAIL_SECURE`
-- `EMAIL_PASS`
-- `CLOUDFLARE_WORKER_URL`
-- `MONGO_FLE_MASTER_KEY`
-- `DEBUG_2FA_CONTEXT`
-
-Use [backend/.env.example](/home/s-ndrlm-r/Projects/affiliate-marketing-app/backend/.env.example) and [frontend/.env.example](/home/s-ndrlm-r/Projects/affiliate-marketing-app/frontend/.env.example) as the source of truth for local placeholder values. Do not put real secrets in the repository.
-
-### Production Checklist
-
-- Set `NODE_ENV=production`.
-- Configure `MONGO_URI` to a production MongoDB database reachable from the backend host.
-- Set strong unique values for `SESSION_SECRET`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, and preferably `JWT_OTP_SECRET`.
-- Set `FRONTEND_URL` to the public frontend origin.
-- Set `VITE_API_URL` to the public backend API root, including `/api`, before building the frontend.
-- Set `COOKIE_DOMAIN` only when cookies must be shared across the production domain/subdomains.
-- Confirm backend CORS allows the deployed frontend origin.
-- Configure Google OAuth redirect URI to match the deployed backend callback.
-- Configure email credentials if password reset or email 2FA are enabled.
-- Configure S3 credentials if accounting file upload/signing endpoints are enabled.
-- Run `npm --prefix frontend run build`.
-- Run backend syntax checks or tests before deploying.
-- Confirm health endpoints after deploy: `/health`, `/api/health`, and `/api/ready`.
-
-### Current Deployment Unknowns
-
-- No Docker, Render, Vercel, Netlify, or Cloudflare config files are committed, so this repo documents generic Node/static deployment commands only.
-- The backend currently includes a hardcoded CORS allowlist for `bundlebee.co.uk` subdomains and localhost in `backend/server.js`; deploying to a different production domain needs a CORS review.
-- The backend has no real automated test command yet; `npm --prefix backend test` is still a placeholder.
-
-## Tests
-
-The backend currently has no real test command:
+Backend syntax checks:
 
 ```bash
 npm --prefix backend test
 ```
 
-This exits with `Error: no test specified`.
+Frontend production build:
 
-## Auth Smoke Checklist
+```bash
+npm --prefix frontend run build
+```
 
-Until automated backend tests exist, use this checklist after auth middleware changes:
+The backend test command currently performs deterministic JavaScript syntax validation. API integration tests still need to be added.
 
-1. Start the backend with a valid `backend/.env`.
-2. Sign in through the frontend or local auth endpoint and complete any required 2FA.
-3. Confirm `GET /api/user/profile` returns the authenticated user and does not return a 500.
-4. Confirm `GET /api/user/profile` without cookies or a bearer token returns 401.
-5. Confirm an admin-only route rejects a normal user with 403.
-6. Confirm an admin token can access `GET /api/admin/analytics`.
-7. Confirm a partner token can access `GET /api/partner/analytics` and cannot access admin routes.
+## Shopping API
 
-## Security Follow-Up
+Public endpoints:
 
-The frontend still stores access tokens in `localStorage`/`sessionStorage` in some flows. That increases impact if an XSS bug is introduced. Keep the current behavior until it can be redesigned and tested separately; the safer long-term direction is cookie-only auth with `HttpOnly`, `Secure`, `SameSite` cookies, CSRF protection for state-changing requests, and removal of bearer-token persistence from browser storage.
+```text
+GET  /api/products
+GET  /api/products/:slug
+POST /api/products/:id/click
+GET  /api/brands
+GET  /api/brands/:slug
+GET  /api/collections
+GET  /api/collections/:slug
+```
+
+Administrator endpoints require an authenticated administrator with verified 2FA:
+
+```text
+GET/POST       /api/admin/products
+PUT/DELETE     /api/admin/products/:id
+GET/POST       /api/admin/brands
+PUT            /api/admin/brands/:id
+GET/POST       /api/admin/collections
+PUT            /api/admin/collections/:id
+GET/POST       /api/admin/affiliate-programmes
+PUT            /api/admin/affiliate-programmes/:id
+```
+
+## Migrating old subscription boxes
+
+The public homepage falls back to legacy subscription boxes while the new product collection is empty.
+
+Review the database backup first, then run:
+
+```bash
+npm --prefix backend run migrate:shopping
+```
+
+The migration:
+
+- creates brands from retailer domains
+- converts subscription boxes into products
+- preserves click totals
+- leaves migrated brands unapproved for manual review
+- uses deterministic slugs
+- avoids creating duplicate products when rerun
+
+After migration, log in at `/admin`, review each brand and product, then publish approved catalogue entries.
+
+## Operator workflow
+
+1. Research an affiliate programme.
+2. Add the programme in the Admin area.
+3. Add and approve the brand.
+4. Add a product as a draft.
+5. Check its price, image, retailer URL and affiliate URL.
+6. Add useful tags and assign it to collections.
+7. Publish it.
+8. Review links and prices regularly.
+
+## Production checklist
+
+- Set `NODE_ENV=production`.
+- Configure `MONGO_URI`.
+- Set strong `SESSION_SECRET`, `JWT_SECRET`, `JWT_REFRESH_SECRET` and `JWT_OTP_SECRET` values.
+- Set `FRONTEND_URL` and `VITE_API_URL` correctly.
+- Confirm CORS and cookie-domain settings.
+- Configure Google OAuth redirect URLs.
+- Run backend validation and the frontend build.
+- Back up MongoDB before running the migration.
+- Confirm `/api/health` and `/api/ready` after deployment.
+- Confirm an unauthenticated visitor can browse products.
+- Confirm only administrators can access `/admin` and `/api/admin/*`.
+
+## Known technical debt
+
+- `backend/server.js` still contains duplicated historical authentication and CORS setup and needs a dedicated refactor.
+- Legacy partner, customer, accounting, quiz and review files are still present but hidden.
+- Browser access-token persistence should eventually be removed in favour of cookie-only authentication with CSRF protection.
+- Real backend integration tests and frontend component tests are not yet present.
+- Historical backup and investigation files still need to be removed after the live deployment is confirmed stable.
