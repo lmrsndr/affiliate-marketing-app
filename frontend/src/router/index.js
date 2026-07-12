@@ -6,12 +6,14 @@ import HomeView from "../views/HomeView.vue";
 import AdminLogin from "../views/AdminLogin.vue";
 import AuthCallback from "../views/AuthCallback.vue";
 import ShoppingAdmin from "../views/ShoppingAdmin.vue";
+import ProductJsonImport from "../views/ProductJsonImport.vue";
 
 const routes = [
   { path: "/", name: "Home", component: HomeView, meta: { public: true } },
   { path: "/login", name: "AdminLogin", component: AdminLogin, meta: { public: true } },
   { path: "/auth/callback", name: "AuthCallback", component: AuthCallback, meta: { public: true } },
   { path: "/admin", name: "ShoppingAdmin", component: ShoppingAdmin, meta: { requiresAdmin: true } },
+  { path: "/admin/import-product", name: "ProductJsonImport", component: ProductJsonImport, meta: { requiresAdmin: true } },
 
   { path: "/admin-dashboard", redirect: "/admin" },
   { path: "/admin/accounting", redirect: "/admin" },
