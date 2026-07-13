@@ -7,11 +7,10 @@
         <router-link to="/">Shop</router-link>
         <a href="/#how-it-works">How it works</a>
         <router-link to="/admin">Admin</router-link>
-        <router-link v-if="isSignedIn" to="/admin/import-product">AI import</router-link>
       </nav>
 
       <div class="bb-actions">
-        <button v-if="isSignedIn" class="bb-btn bb-btn--ghost bb-signout" @click="signOut">Sign out</button>
+        <button v-if="isAdmin" class="bb-btn bb-btn--ghost bb-signout" @click="signOut">Sign out</button>
         <button class="bb-btn bb-btn--ghost bb-toggle" @click="toggleTheme" :aria-pressed="isDark.toString()">
           <span v-if="isDark">☀️ Light</span>
           <span v-else>🌙 Dark</span>
@@ -27,7 +26,8 @@
 
 <script>
 import { ref, onMounted } from "vue";
-import { getSupabaseSession, signOutSupabase } from "@/supabaseAuth";
+import { clearSupabaseSession, getSupabaseSession, signOutSupabase } from "@/supabaseAuth";
+import { getBackendSupabaseSession } from "@/api";
 
 import "@/css/brand.css";
 import "@/css/light.css";
@@ -38,7 +38,7 @@ export default {
   setup() {
     const THEME_KEY = "bbTheme";
     const isDark = ref(false);
-    const isSignedIn = ref(false);
+    const isAdmin = ref(false);
 
     const setTheme = (mode) => {
       isDark.value = mode === "dark";
@@ -50,8 +50,8 @@ export default {
     const toggleTheme = () => setTheme(isDark.value ? "light" : "dark");
 
     const signOut = async () => {
-      await signOutSupabase().catch(() => undefined);
-      isSignedIn.value = false;
+      await signOutSupabase().catch(() => clearSupabaseSession());
+      isAdmin.value = false;
       window.location.assign("/");
     };
 
@@ -63,10 +63,20 @@ export default {
         setTheme(prefersDark ? "dark" : "light");
       }
 
-      isSignedIn.value = Boolean(await getSupabaseSession().catch(() => null));
+      const localSession = await getSupabaseSession().catch(() => null);
+      if (!localSession) return;
+
+      try {
+        const auth = await getBackendSupabaseSession();
+        isAdmin.value = Boolean(auth?.isAdmin);
+        if (!isAdmin.value) clearSupabaseSession();
+      } catch {
+        clearSupabaseSession();
+        isAdmin.value = false;
+      }
     });
 
-    return { isDark, isSignedIn, signOut, toggleTheme };
+    return { isDark, isAdmin, signOut, toggleTheme };
   },
 };
 </script>
