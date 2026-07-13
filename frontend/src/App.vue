@@ -6,7 +6,7 @@
       <nav class="bb-nav" aria-label="Main navigation">
         <router-link to="/">Shop</router-link>
         <a href="/#how-it-works">How it works</a>
-        <router-link to="/admin">Admin</router-link>
+        <router-link to="/admin" rel="nofollow">Admin</router-link>
       </nav>
 
       <div class="bb-actions">
