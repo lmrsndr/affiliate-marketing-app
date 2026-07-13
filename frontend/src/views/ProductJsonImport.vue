@@ -78,7 +78,7 @@ function importJson(){
     reviewNotes.value=Array.isArray(source.reviewNotes)?source.reviewNotes.map(String):[];
     replaceDraft({
       name:String(source.name||'').trim(),
-      brand:maker?._id:'',
+      brand:maker ? maker._id : '',
       shortDescription:String(source.shortDescription||source.description||'').trim().slice(0,240),
       curatorNote:String(source.curatorNote||source.whyBundleBeePickedIt||'').trim().slice(0,320),
       price:Number.isFinite(price)?price:null,
