@@ -82,14 +82,26 @@ export default {
 </script>
 
 <style>
-#app { display:flex; flex-direction:column; align-items:center; min-height:100vh; }
-.bb-header { position:sticky; top:0; z-index:40; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:1rem; width:100%; box-sizing:border-box; padding:12px 18px; border-bottom:1px solid var(--bb-border); background:color-mix(in srgb, var(--bb-bg) 88%, transparent); backdrop-filter:blur(8px); }
-.bb-title { margin:0; font-family:var(--bb-font-heading); font-size:1.45rem; font-weight:800; letter-spacing:-.3px; background:linear-gradient(90deg,var(--bb-primary-dark) 0 55%,var(--bb-primary-light) 55% 100%); -webkit-background-clip:text; background-clip:text; color:transparent; text-decoration:none; text-transform:lowercase; }
-.bb-nav { display:flex; justify-content:center; gap:1rem; }
-.bb-nav a { color:var(--bb-text); text-decoration:none; font-weight:650; }
-.bb-nav a:hover,.bb-nav a.router-link-active { color:var(--bb-primary-light); }
-.bb-actions{display:flex;align-items:center;gap:.5rem}.bb-toggle,.bb-signout { font-size:.9rem; padding:.5rem .75rem; border:1px solid var(--bb-border); border-radius:var(--bb-radius); }
-.bb-main { flex-grow:1; width:min(1180px,calc(100% - 28px)); box-sizing:border-box; padding:20px; background:var(--bb-surface); box-shadow:var(--bb-shadow-sm); border-radius:var(--bb-radius); margin:20px auto; }
-body { font-family:var(--bb-font-body); margin:0; padding:0; background-color:var(--bb-bg); color:var(--bb-text); }
-@media(max-width:680px){ .bb-header{grid-template-columns:1fr auto}.bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;overflow-x:auto}.bb-actions{grid-column:2;grid-row:1}.bb-main{width:min(100% - 16px,1180px);padding:12px;margin:10px auto} }
+*{box-sizing:border-box}
+html{min-width:0;overflow-x:hidden;scroll-behavior:smooth}
+body{min-width:0;margin:0;padding:0;overflow-x:hidden;background-color:var(--bb-bg);color:var(--bb-text);font-family:var(--bb-font-body);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+#app{display:flex;flex-direction:column;align-items:center;min-height:100vh;min-width:0}
+.bb-header{position:sticky;top:0;z-index:40;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1rem;width:100%;padding:12px max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left));border-bottom:1px solid var(--bb-border);background:color-mix(in srgb,var(--bb-bg) 90%,transparent);backdrop-filter:blur(10px)}
+.bb-title{margin:0;font-family:var(--bb-font-heading);font-size:1.45rem;font-weight:800;letter-spacing:-.3px;background:linear-gradient(90deg,var(--bb-primary-dark) 0 55%,var(--bb-primary-light) 55% 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-decoration:none;text-transform:lowercase;white-space:nowrap}
+.bb-nav{display:flex;justify-content:center;gap:.35rem;min-width:0}
+.bb-nav a{display:inline-flex;align-items:center;min-height:42px;padding:.55rem .75rem;border-radius:999px;color:var(--bb-text);font-weight:650;text-decoration:none;white-space:nowrap}
+.bb-nav a:hover,.bb-nav a.router-link-active{background:color-mix(in srgb,var(--bb-primary-dark) 9%,transparent);color:var(--bb-primary-light)}
+.bb-actions{display:flex;align-items:center;justify-content:flex-end;gap:.45rem}
+.bb-toggle,.bb-signout{min-height:42px;padding:.5rem .75rem;border:1px solid var(--bb-border);border-radius:999px;background:var(--bb-surface);color:var(--bb-text);font-size:.9rem;white-space:nowrap;cursor:pointer}
+.bb-main{flex-grow:1;width:min(1180px,calc(100% - 28px));min-width:0;margin:20px auto;padding:20px;border-radius:var(--bb-radius);background:var(--bb-surface);box-shadow:var(--bb-shadow-sm)}
+@media(max-width:680px){
+ .bb-header{grid-template-columns:minmax(0,1fr) auto;gap:.55rem;padding:8px max(10px,env(safe-area-inset-right)) 7px max(10px,env(safe-area-inset-left))}
+ .bb-title{font-size:1.25rem}
+ .bb-actions{grid-column:2;grid-row:1}.bb-toggle,.bb-signout{min-height:38px;padding:.42rem .62rem;font-size:.78rem}
+ .bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;gap:.2rem;margin:0 -10px;padding:0 10px 2px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+ .bb-nav::-webkit-scrollbar{display:none}.bb-nav a{min-height:38px;padding:.45rem .65rem;font-size:.84rem;scroll-snap-align:start}
+ .bb-main{width:100%;margin:0;padding:10px max(8px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-radius:0;box-shadow:none}
+}
 </style>
