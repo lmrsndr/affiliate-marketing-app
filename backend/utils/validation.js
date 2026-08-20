@@ -51,8 +51,13 @@ function validateShoppingPayload(kind, payload) {
     requireText("brand", "Brand");
     requireText("shortDescription", "Short description");
 
-    for (const field of ["productUrl", "affiliateUrl", "imageUrl"]) {
-      if (!isSafePublicUrl(payload[field], { required: true })) {
+    if (!isSafePublicUrl(payload.productUrl, { required: true })) {
+      errors.push("productUrl must be a valid public HTTP or HTTPS URL");
+    }
+
+    const publishing = Boolean(payload.publishedAt);
+    for (const field of ["affiliateUrl", "imageUrl"]) {
+      if (!isSafePublicUrl(payload[field], { required: publishing })) {
         errors.push(`${field} must be a valid public HTTP or HTTPS URL`);
       }
     }
@@ -70,6 +75,15 @@ function validateShoppingPayload(kind, payload) {
     }
     if (payload.logoUrl && !isSafePublicUrl(payload.logoUrl)) {
       errors.push("Logo URL must be a valid public HTTP or HTTPS URL");
+    }
+    if (payload.heroImageUrl && !isSafePublicUrl(payload.heroImageUrl)) {
+      errors.push("Hero image URL must be a valid public HTTP or HTTPS URL");
+    }
+    if (!isSafePublicUrl(payload.affiliateUrl, { required: Boolean(payload.publishedAt) })) {
+      errors.push("Affiliate URL must be a valid public HTTP or HTTPS URL");
+    }
+    for (const url of payload.galleryImages || []) {
+      if (!isSafePublicUrl(url)) errors.push("Gallery images must use valid public HTTP or HTTPS URLs");
     }
   }
 

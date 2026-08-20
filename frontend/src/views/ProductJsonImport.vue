@@ -22,7 +22,7 @@
 
       <form id="review-draft" class="panel review-panel" @submit.prevent="saveDraft">
         <h2>2. Review the draft</h2>
-        <p class="hint">The URL slug is generated automatically in the background.</p>
+        <p class="hint">The URL slug is generated automatically. Affiliate and image links can be added later, but both are required before publishing.</p>
         <label><span>Product name</span><input v-model.trim="draft.name" required /></label>
         <label><span>Maker or shop</span><select v-model="draft.brand" required><option value="">Choose an existing maker</option><option v-for="brand in brands" :key="brand._id" :value="brand._id">{{ brand.name }}</option></select></label>
         <p v-if="suggestedMaker && !draft.brand" class="warning">AI suggested “{{ suggestedMaker }}”, but no matching Maker exists yet.</p>
@@ -30,8 +30,8 @@
         <label><span>Why BundleBee picked it</span><textarea v-model.trim="draft.curatorNote" maxlength="320" rows="3"></textarea></label>
         <div class="two"><label><span>Price</span><input v-model.number="draft.price" type="number" min="0" step="0.01" /></label><label><span>Product type</span><select v-model="draft.productType"><option v-for="type in productTypes" :key="type" :value="type">{{ type }}</option></select></label></div>
         <label><span>Public product URL</span><input v-model.trim="draft.productUrl" type="url" required /></label>
-        <label><span>Affiliate tracking URL</span><input v-model.trim="draft.affiliateUrl" type="url" required /></label>
-        <label><span>Main image URL</span><input v-model.trim="draft.imageUrl" type="url" required /></label>
+        <label><span>Affiliate tracking URL — optional in draft</span><input v-model.trim="draft.affiliateUrl" type="url" /></label>
+        <label><span>Main image URL — optional in draft</span><input v-model.trim="draft.imageUrl" type="url" /></label>
         <ChoiceSet title="Moods" v-model="draft.moods" :options="moodOptions" />
         <ChoiceSet title="Recipients" v-model="draft.recipients" :options="recipientOptions" />
         <ChoiceSet title="Occasions" v-model="draft.occasions" :options="occasionOptions" />
@@ -55,9 +55,9 @@ const recipientOptions=['partner','parent','teenager','friend','teacher','couple
 const occasionOptions=['birthday','anniversary','wedding','new home','Christmas','thank you'];
 const qualityOptions=['handmade','personalised','limited edition','made in Britain','small batch','sustainable claim'];
 const rawJson=ref(''),brands=ref([]),suggestedMaker=ref(''),reviewNotes=ref([]),saving=ref(false),error=ref(''),message=ref('');
-const blank=()=>({name:'',brand:'',shortDescription:'',curatorNote:'',price:null,currency:'GBP',productType:'physical',productUrl:'',affiliateUrl:'',imageUrl:'',moods:[],recipients:[],occasions:[],qualities:[],tagsText:''});
+const blank=()=>({name:'',brand:'',shortDescription:'',curatorNote:'',price:null,currency:'GBP',productType:'physical',brandSortOrder:0,productUrl:'',affiliateUrl:'',imageUrl:'',moods:[],recipients:[],occasions:[],qualities:[],tagsText:''});
 const draft=reactive(blank());
-const canSave=computed(()=>Boolean(draft.name&&draft.brand&&draft.shortDescription&&draft.productUrl&&draft.affiliateUrl&&draft.imageUrl));
+const canSave=computed(()=>Boolean(draft.name&&draft.brand&&draft.shortDescription&&draft.productUrl));
 
 function slugify(v){return String(v||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
 function cleanArray(v,allowed){const list=Array.isArray(v)?v:[];const normal=list.map(x=>String(x).trim().toLowerCase());return allowed.filter(x=>normal.includes(x.toLowerCase()));}
