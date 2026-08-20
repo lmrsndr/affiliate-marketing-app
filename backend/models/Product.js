@@ -12,8 +12,8 @@ const productSchema = new mongoose.Schema(
     price: { type: Number, default: null, min: 0 },
     currency: { type: String, default: "GBP", trim: true, uppercase: true },
     productUrl: { type: String, required: true, trim: true },
-    affiliateUrl: { type: String, required: true, trim: true },
-    imageUrl: { type: String, required: true, trim: true },
+    affiliateUrl: { type: String, default: "", trim: true },
+    imageUrl: { type: String, default: "", trim: true },
     additionalImages: { type: [String], default: [] },
     tags: { type: [String], default: [] },
     moods: { type: [String], default: [], index: true },
@@ -27,6 +27,7 @@ const productSchema = new mongoose.Schema(
     },
     badges: { type: [String], default: [] },
     featured: { type: Boolean, default: false, index: true },
+    brandSortOrder: { type: Number, default: 0 },
     active: { type: Boolean, default: true, index: true },
     stockStatus: {
       type: String,

@@ -46,9 +46,10 @@
             <Field label="Short description"><textarea v-model.trim="productForm.shortDescription" required maxlength="240" rows="3"></textarea></Field>
             <Field label="Why BundleBee picked it"><textarea v-model.trim="productForm.curatorNote" maxlength="320" rows="3"></textarea></Field>
             <div class="two"><Field label="Price"><input v-model.number="productForm.price" type="number" min="0" step="0.01" /></Field><Field label="Product type"><select v-model="productForm.productType"><option v-for="type in productTypes" :key="type" :value="type">{{ type }}</option></select></Field></div>
+            <Field label="Position within maker page"><input v-model.number="productForm.brandSortOrder" type="number" min="0" step="1" /></Field>
             <Field label="Product page"><input v-model.trim="productForm.productUrl" type="url" required /></Field>
-            <Field label="Affiliate link"><input v-model.trim="productForm.affiliateUrl" type="url" required /></Field>
-            <Field label="Main image URL"><input v-model.trim="productForm.imageUrl" type="url" required /></Field>
+            <Field label="Affiliate link — required to publish"><input v-model.trim="productForm.affiliateUrl" type="url" /></Field>
+            <Field label="Main image URL — required to publish"><input v-model.trim="productForm.imageUrl" type="url" /></Field>
             <ChoiceGroup title="What should it feel like?" v-model="productForm.moods" :options="moodOptions" />
             <ChoiceGroup title="Who could it suit?" v-model="productForm.recipients" :options="recipientOptions" />
             <ChoiceGroup title="Useful occasions" v-model="productForm.occasions" :options="occasionOptions" />
@@ -68,15 +69,27 @@
 
       <section v-else-if="activeTab === 'makers'" class="workspace">
         <form class="editor card" @submit.prevent="saveBrand">
-          <header><p class="eyebrow">Reusable information</p><h2>{{ brandForm._id ? 'Edit maker' : 'Add a maker or shop' }}</h2></header>
+          <header><p class="eyebrow">Build the shop window</p><h2>{{ brandForm._id ? 'Edit maker' : 'Add a maker or shop' }}</h2><p class="form-intro">A maker stays private until it is approved, active and published. Product drafts can be prepared before affiliate links are available.</p></header>
           <Field label="Name"><input v-model.trim="brandForm.name" required /></Field>
+          <Field label="Tagline"><input v-model.trim="brandForm.tagline" maxlength="180" placeholder="A one-line sense of the maker" /></Field>
+          <Field label="Short introduction"><textarea v-model.trim="brandForm.description" rows="3" placeholder="Shown in search results and at the top of the maker page"></textarea></Field>
+          <Field label="Maker story"><textarea v-model.trim="brandForm.story" rows="7" placeholder="Original factual editorial copy about the craft, studio and point of view"></textarea></Field>
+          <Field label="Why BundleBee stopped here"><textarea v-model.trim="brandForm.curatorNote" maxlength="500" rows="4"></textarea></Field>
           <Field label="Website"><input v-model.trim="brandForm.website" type="url" required /></Field>
+          <Field label="Tracked shop link"><input v-model.trim="brandForm.affiliateUrl" type="url" placeholder="Use the maker or shop-level Awin tracking link" /></Field>
+          <Field label="Affiliate programme"><select v-model="brandForm.affiliateProgramme"><option value="">No programme yet</option><option v-for="programme in programmes" :key="programme._id" :value="programme._id">{{ programme.name }} · {{ programme.status }}</option></select></Field>
           <Field label="Logo URL"><input v-model.trim="brandForm.logoUrl" type="url" /></Field>
-          <Field label="Short story"><textarea v-model.trim="brandForm.description" rows="5"></textarea></Field>
-          <div class="checks"><label><input v-model="brandForm.independent" type="checkbox" /> Independent</label><label><input v-model="brandForm.smallBusiness" type="checkbox" /> Small business</label><label><input v-model="brandForm.approved" type="checkbox" /> Approved</label><label><input v-model="brandForm.active" type="checkbox" /> Active</label></div>
+          <Field label="Hero image URL"><input v-model.trim="brandForm.heroImageUrl" type="url" /></Field>
+          <Field label="Gallery image URLs"><textarea v-model.trim="brandForm.galleryImagesText" rows="4" placeholder="One image URL per line"></textarea></Field>
+          <Field label="Country"><input v-model.trim="brandForm.country" /></Field>
+          <ChoiceGroup title="The maker’s feel" v-model="brandForm.moods" :options="moodOptions" />
+          <ChoiceGroup title="Who their work could suit" v-model="brandForm.recipients" :options="recipientOptions" />
+          <ChoiceGroup title="Useful occasions" v-model="brandForm.occasions" :options="occasionOptions" />
+          <ChoiceGroup title="Maker qualities" v-model="brandForm.qualities" :options="qualityOptions" />
+          <div class="checks"><label><input v-model="brandForm.independent" type="checkbox" /> Independent</label><label><input v-model="brandForm.smallBusiness" type="checkbox" /> Small business</label><label><input v-model="brandForm.featured" type="checkbox" /> Featured</label><label><input v-model="brandForm.approved" type="checkbox" /> Approved</label><label><input v-model="brandForm.active" type="checkbox" /> Active</label><label><input v-model="brandForm.published" type="checkbox" /> Published (tracked link required)</label></div>
           <FormActions :editing="!!brandForm._id" :saving="saving" @cancel="resetBrand" />
         </form>
-        <RecordList title="Makers & shops" :items="brands" empty="No makers yet."><template #summary="{ item }">{{ item.website }}</template><template #status="{ item }">{{ item.approved ? 'Approved' : 'Needs review' }}</template><template #actions="{ item }"><button @click="editBrand(item)">Edit</button></template></RecordList>
+        <RecordList title="Makers & shops" :items="brands" empty="No makers yet."><template #summary="{ item }">{{ item.tagline || item.website }}</template><template #status="{ item }">{{ item.publishedAt ? 'Published' : 'Draft' }} · {{ item.approved ? 'Approved' : 'Needs review' }} · {{ item.clicks || 0 }} shop clicks</template><template #actions="{ item }"><button @click="editBrand(item)">Edit</button></template></RecordList>
       </section>
 
       <section v-else-if="activeTab === 'guides'" class="workspace">
@@ -133,8 +146,8 @@ const programmeStatuses=['researching','applied','approved','declined','paused',
 
 const activeTab=ref('products'),productMode=ref('ai'),loading=ref(true),saving=ref(false),error=ref(''),message=ref('');
 const products=ref([]),brands=ref([]),collections=ref([]),programmes=ref([]),users=ref([]);
-const blankProduct=()=>({_id:'',name:'',slug:'',brand:'',shortDescription:'',curatorNote:'',price:null,productType:'physical',productUrl:'',affiliateUrl:'',imageUrl:'',tagsText:'',moods:[],recipients:[],occasions:[],qualities:[],featured:false,active:true,published:false});
-const blankBrand=()=>({_id:'',name:'',slug:'',website:'',logoUrl:'',description:'',independent:true,smallBusiness:true,approved:false,active:true});
+const blankProduct=()=>({_id:'',name:'',slug:'',brand:'',shortDescription:'',curatorNote:'',price:null,productType:'physical',brandSortOrder:0,productUrl:'',affiliateUrl:'',imageUrl:'',tagsText:'',moods:[],recipients:[],occasions:[],qualities:[],featured:false,active:true,published:false});
+const blankBrand=()=>({_id:'',name:'',slug:'',tagline:'',description:'',story:'',curatorNote:'',website:'',affiliateUrl:'',affiliateProgramme:'',logoUrl:'',heroImageUrl:'',galleryImagesText:'',country:'United Kingdom',moods:[],recipients:[],occasions:[],qualities:[],independent:true,smallBusiness:true,featured:false,approved:false,active:true,published:false});
 const blankCollection=()=>({_id:'',name:'',slug:'',description:'',imageUrl:'',products:[],featured:false,active:true,published:false});
 const blankProgramme=()=>({_id:'',name:'',network:'Direct',status:'researching',applicationUrl:'',dashboardUrl:'',contactEmail:'',lastCheckedAt:'',nextCheckDueAt:'',notes:'',active:true});
 const productForm=reactive(blankProduct()),brandForm=reactive(blankBrand()),collectionForm=reactive(blankCollection()),programmeForm=reactive(blankProgramme());
@@ -153,13 +166,13 @@ async function loadAll(){loading.value=true;error.value='';try{const [p,b,c,a,u]
 async function run(action,text){saving.value=true;error.value='';try{await action();await loadAll();flash(text);}catch(e){error.value=e?.response?.data?.message||'The change could not be saved.';}finally{saving.value=false;}}
 
 function editProduct(item){replace(productForm,{...blankProduct(),...item,brand:item.brand?._id||item.brand||'',tagsText:(item.tags||[]).join(', '),moods:item.moods||[],recipients:item.recipients||[],occasions:item.occasions||[],qualities:item.qualities||[],published:!!item.publishedAt});productMode.value='manual';window.scrollTo({top:0,behavior:'smooth'});}
-function editBrand(item){replace(brandForm,{...blankBrand(),...item});window.scrollTo({top:0,behavior:'smooth'});}
+function editBrand(item){replace(brandForm,{...blankBrand(),...item,affiliateProgramme:item.affiliateProgramme?._id||item.affiliateProgramme||'',galleryImagesText:(item.galleryImages||[]).join('\n'),moods:item.moods||[],recipients:item.recipients||[],occasions:item.occasions||[],qualities:item.qualities||[],published:!!item.publishedAt});window.scrollTo({top:0,behavior:'smooth'});}
 function editCollection(item){replace(collectionForm,{...blankCollection(),...item,products:(item.products||[]).map(p=>p._id||p),published:!!item.publishedAt});window.scrollTo({top:0,behavior:'smooth'});}
 function editProgramme(item){replace(programmeForm,{...blankProgramme(),...item,lastCheckedAt:toDateInput(item.lastCheckedAt),nextCheckDueAt:toDateInput(item.nextCheckDueAt)});window.scrollTo({top:0,behavior:'smooth'});}
 
 async function saveProduct(){const id=productForm._id,payload={...productForm,slug:productForm.slug||slugify(productForm.name),tags:productForm.tagsText.split(',').map(v=>v.trim()).filter(Boolean),publishedAt:productForm.published?(products.value.find(v=>v._id===id)?.publishedAt||new Date().toISOString()):null};delete payload._id;delete payload.tagsText;delete payload.published;await run(async()=>{await(id?API.put(`/admin/products/${id}`,payload):API.post('/admin/products',payload));resetProduct();},'Product saved.');}
 async function hideProduct(item){await run(()=>API.delete(`/admin/products/${item._id}`),'Product hidden.');}
-async function saveBrand(){const id=brandForm._id,payload={...brandForm,slug:brandForm.slug||slugify(brandForm.name)};delete payload._id;await run(async()=>{await(id?API.put(`/admin/brands/${id}`,payload):API.post('/admin/brands',payload));resetBrand();},'Maker saved.');}
+async function saveBrand(){const id=brandForm._id,payload={...brandForm,slug:brandForm.slug||slugify(brandForm.name),affiliateProgramme:brandForm.affiliateProgramme||null,galleryImages:brandForm.galleryImagesText.split(/\r?\n|,/).map(value=>value.trim()).filter(Boolean),publishedAt:brandForm.published?(brands.value.find(value=>value._id===id)?.publishedAt||new Date().toISOString()):null};delete payload._id;delete payload.galleryImagesText;delete payload.published;await run(async()=>{await(id?API.put(`/admin/brands/${id}`,payload):API.post('/admin/brands',payload));resetBrand();},'Maker saved.');}
 async function saveCollection(){const id=collectionForm._id,payload={...collectionForm,slug:collectionForm.slug||slugify(collectionForm.name),publishedAt:collectionForm.published?(collections.value.find(v=>v._id===id)?.publishedAt||new Date().toISOString()):null};delete payload._id;delete payload.published;await run(async()=>{await(id?API.put(`/admin/collections/${id}`,payload):API.post('/admin/collections',payload));resetCollection();},'Gift guide saved.');}
 async function saveProgramme(){const id=programmeForm._id,payload={...programmeForm,lastCheckedAt:programmeForm.lastCheckedAt||null,nextCheckDueAt:programmeForm.nextCheckDueAt||null};delete payload._id;await run(async()=>{await(id?API.put(`/admin/affiliate-programmes/${id}`,payload):API.post('/admin/affiliate-programmes',payload));resetProgramme();},'Affiliate platform saved.');}
 async function markChecked(item){const next=new Date();next.setMonth(next.getMonth()+1);const {_id,createdAt,updatedAt,__v,...editable}=item;await run(()=>API.put(`/admin/affiliate-programmes/${_id}`,{...editable,lastCheckedAt:new Date().toISOString(),nextCheckDueAt:next.toISOString()}),'Platform marked as checked.');}
@@ -178,4 +191,5 @@ onMounted(loadAll);
  .two{grid-template-columns:1fr}.editor{gap:.8rem}.choice-grid{flex-wrap:nowrap;overflow-x:auto;margin:0 -.25rem;padding:.15rem .25rem .55rem;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}.choice-grid::-webkit-scrollbar{display:none}.choice-grid label{flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}.checks{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .6rem}.actions{display:grid;grid-template-columns:1fr 1fr}.actions .button:only-child{grid-column:1/-1}.record-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.record-actions .button,.record-actions button,.record-actions a{width:100%}.record-actions .primary{grid-column:1/-1}.access-panel{gap:1rem}
 }
 @media(max-width:390px){.tabs button{flex-basis:82vw}.checks,.actions,.record-actions{grid-template-columns:1fr}.record-actions .primary{grid-column:auto}}
+.form-intro{color:var(--bb-muted);line-height:1.5}
 </style>

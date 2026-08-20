@@ -34,6 +34,15 @@ function preparePayload(kind, body) {
     payload.badges = cleanStringList(payload.badges);
     payload.additionalImages = cleanStringList(payload.additionalImages).filter((url) => isSafePublicUrl(url));
   }
+  if (kind === "product" || kind === "brand") {
+    payload.moods = cleanStringList(payload.moods);
+    payload.recipients = cleanStringList(payload.recipients);
+    payload.occasions = cleanStringList(payload.occasions);
+    payload.qualities = cleanStringList(payload.qualities);
+  }
+  if (kind === "brand") {
+    payload.galleryImages = cleanStringList(payload.galleryImages).filter((url) => isSafePublicUrl(url));
+  }
   if (kind === "collection") payload.products = cleanStringList(payload.products);
   return payload;
 }
@@ -56,9 +65,22 @@ router.get("/products", async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 100);
-    const query = { active: true, publishedAt: { $ne: null } };
+    const publicBrandIds = await Brand.find({
+      active: true,
+      approved: true,
+      publishedAt: { $ne: null },
+    }).distinct("_id");
+    const query = {
+      active: true,
+      publishedAt: { $ne: null },
+      brand: { $in: publicBrandIds },
+    };
 
-    if (req.query.brand && mongoose.isValidObjectId(req.query.brand)) query.brand = req.query.brand;
+    if (req.query.brand && mongoose.isValidObjectId(req.query.brand)) {
+      query.brand = publicBrandIds.some((id) => String(id) === String(req.query.brand))
+        ? req.query.brand
+        : { $in: [] };
+    }
     if (req.query.category && mongoose.isValidObjectId(req.query.category)) query.categories = req.query.category;
     if (req.query.type) query.productType = req.query.type;
     if (req.query.featured !== undefined) query.featured = parseBoolean(req.query.featured);
@@ -81,7 +103,7 @@ router.get("/products", async (req, res) => {
 
     const [items, total] = await Promise.all([
       Product.find(query)
-        .populate("brand", "name slug website logoUrl description country independent smallBusiness")
+        .populate("brand", "name slug website logoUrl description tagline curatorNote heroImageUrl affiliateUrl country independent smallBusiness featured moods recipients occasions qualities")
         .populate("categories", "name description imageUrl")
         .sort(sortOptions[req.query.sort] || { featured: -1, publishedAt: -1 })
         .skip((page - 1) * limit)
@@ -103,10 +125,14 @@ router.get("/products/:slug", async (req, res) => {
       active: true,
       publishedAt: { $ne: null },
     })
-      .populate("brand", "name slug website logoUrl description country independent smallBusiness")
+      .populate({
+        path: "brand",
+        match: { active: true, approved: true, publishedAt: { $ne: null } },
+        select: "name slug website logoUrl description tagline curatorNote heroImageUrl affiliateUrl country independent smallBusiness featured moods recipients occasions qualities",
+      })
       .populate("categories", "name description imageUrl");
 
-    if (!item) return res.status(404).json({ message: "Product not found" });
+    if (!item || !item.brand) return res.status(404).json({ message: "Product not found" });
     res.json(item);
   } catch (error) {
     console.error("Failed to load product:", error);
@@ -120,8 +146,19 @@ router.post("/products/:id/click", async (req, res) => {
       return res.status(400).json({ message: "Invalid product ID" });
     }
 
+    const publicBrandIds = await Brand.find({
+      active: true,
+      approved: true,
+      publishedAt: { $ne: null },
+    }).distinct("_id");
+
     const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, active: true, publishedAt: { $ne: null } },
+      {
+        _id: req.params.id,
+        brand: { $in: publicBrandIds },
+        active: true,
+        publishedAt: { $ne: null },
+      },
       { $inc: { clicks: 1 } },
       { new: true }
     ).select("affiliateUrl");
@@ -140,9 +177,9 @@ router.post("/products/:id/click", async (req, res) => {
 router.get("/brands", async (_req, res) => {
   try {
     res.json(
-      await Brand.find({ active: true, approved: true })
-        .select("name slug website logoUrl description country independent smallBusiness")
-        .sort({ name: 1 })
+      await Brand.find({ active: true, approved: true, publishedAt: { $ne: null } })
+        .select("name slug website logoUrl description tagline curatorNote heroImageUrl galleryImages affiliateUrl country independent smallBusiness featured moods recipients occasions qualities clicks publishedAt")
+        .sort({ featured: -1, name: 1 })
     );
   } catch (error) {
     console.error("Failed to list brands:", error);
@@ -156,17 +193,42 @@ router.get("/brands/:slug", async (req, res) => {
       slug: normaliseSlug(req.params.slug),
       active: true,
       approved: true,
-    }).select("name slug website logoUrl description country independent smallBusiness");
+      publishedAt: { $ne: null },
+    }).select("name slug website logoUrl description tagline story curatorNote heroImageUrl galleryImages affiliateUrl country independent smallBusiness featured moods recipients occasions qualities clicks publishedAt");
     if (!brand) return res.status(404).json({ message: "Brand not found" });
 
     const products = await Product.find({ brand: brand._id, active: true, publishedAt: { $ne: null } })
       .populate("categories", "name description imageUrl")
-      .sort({ featured: -1, publishedAt: -1 });
+      .sort({ featured: -1, brandSortOrder: 1, publishedAt: -1 });
 
     res.json({ brand, products });
   } catch (error) {
     console.error("Failed to load brand:", error);
     res.status(500).json({ message: "Unable to load brand" });
+  }
+});
+
+router.post("/brands/:id/click", async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid maker ID" });
+    }
+
+    const brand = await Brand.findOneAndUpdate(
+      { _id: req.params.id, active: true, approved: true, publishedAt: { $ne: null } },
+      { $inc: { clicks: 1 } },
+      { new: true }
+    ).select("affiliateUrl website");
+
+    if (!brand) return res.status(404).json({ message: "Maker not found" });
+    const url = isSafePublicUrl(brand.affiliateUrl) ? brand.affiliateUrl : brand.website;
+    if (!isSafePublicUrl(url, { required: true })) {
+      return res.status(409).json({ message: "This shop link needs administrator review" });
+    }
+    res.json({ url });
+  } catch (error) {
+    console.error("Failed to record maker click:", error);
+    res.status(500).json({ message: "Unable to open maker shop" });
   }
 });
 

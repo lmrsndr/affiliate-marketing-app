@@ -3,6 +3,7 @@ import { clearSupabaseSession, getSupabaseSession, signOutSupabase } from "@/sup
 import { getBackendSupabaseSession } from "@/api";
 
 import HomeView from "../views/HomeView.vue";
+import MakerView from "../views/MakerView.vue";
 import AdminLogin from "../views/AdminLogin.vue";
 import AuthCallback from "../views/AuthCallback.vue";
 import ShoppingAdmin from "../views/ShoppingAdmin.vue";
@@ -10,6 +11,7 @@ import ProductJsonImport from "../views/ProductJsonImport.vue";
 
 const routes = [
   { path: "/", name: "Home", component: HomeView, meta: { public: true, title: "BundleBee | Distinctive gifts from independent makers", indexable: true } },
+  { path: "/makers/:slug", name: "Maker", component: MakerView, meta: { public: true, title: "BundleBee maker edit", indexable: true } },
   { path: "/login", name: "AdminLogin", component: AdminLogin, meta: { public: true, title: "BundleBee administrator sign in", indexable: false } },
   { path: "/auth/callback", name: "AuthCallback", component: AuthCallback, meta: { public: true, title: "BundleBee sign in", indexable: false } },
   { path: "/admin", name: "ShoppingAdmin", component: ShoppingAdmin, meta: { requiresAdmin: true, title: "BundleBee administration", indexable: false } },
