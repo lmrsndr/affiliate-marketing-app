@@ -105,18 +105,57 @@
         <RecordList title="Gift guides" :items="collections" empty="No gift guides yet."><template #summary="{ item }">{{ item.products?.length || 0 }} products</template><template #status="{ item }">{{ item.publishedAt ? 'Published' : 'Draft' }}</template><template #actions="{ item }"><button @click="editCollection(item)">Edit</button></template></RecordList>
       </section>
 
-      <section v-else-if="activeTab === 'platforms'" class="workspace">
-        <form class="editor card" @submit.prevent="saveProgramme">
-          <header><p class="eyebrow">Affiliate control centre</p><h2>{{ programmeForm._id ? 'Edit affiliate platform' : 'Add affiliate platform' }}</h2></header>
-          <div class="two"><Field label="Programme or retailer"><input v-model.trim="programmeForm.name" required /></Field><Field label="Network or platform"><input v-model.trim="programmeForm.network" required /></Field></div>
-          <Field label="Dashboard login URL"><input v-model.trim="programmeForm.dashboardUrl" type="url" /></Field>
-          <Field label="Application URL"><input v-model.trim="programmeForm.applicationUrl" type="url" /></Field>
-          <div class="two"><Field label="Status"><select v-model="programmeForm.status"><option v-for="status in programmeStatuses" :key="status" :value="status">{{ status }}</option></select></Field><Field label="Contact email"><input v-model.trim="programmeForm.contactEmail" type="email" /></Field></div>
-          <div class="two"><Field label="Last checked"><input v-model="programmeForm.lastCheckedAt" type="date" /></Field><Field label="Check again on"><input v-model="programmeForm.nextCheckDueAt" type="date" /></Field></div>
-          <Field label="Notes"><textarea v-model.trim="programmeForm.notes" rows="5"></textarea></Field>
-          <FormActions :editing="!!programmeForm._id" :saving="saving" @cancel="resetProgramme" />
+      <section v-else-if="activeTab === 'platforms'" class="platform-section">
+        <form class="import-card card" @submit.prevent="importAwinDirectory">
+          <div>
+            <p class="eyebrow">Build the prospect database</p>
+            <h2>Import an Awin advertiser directory</h2>
+            <p class="form-intro">The import updates matching programmes and creates private research records only. Its fit score is a suggestion; your review decision remains authoritative.</p>
+          </div>
+          <Field label="Awin CSV export"><input type="file" accept=".csv,text/csv" required @change="chooseAwinFile" /></Field>
+          <div class="two"><Field label="Awin publisher ID"><input v-model.trim="awinImport.publisherId" inputmode="numeric" pattern="[0-9]*" required /></Field><Field label="Country code"><input v-model.trim="awinImport.region" maxlength="2" required /></Field></div>
+          <button class="button primary" type="submit" :disabled="importing">{{ importing ? 'Importing…' : 'Import UK prospects' }}</button>
+          <p v-if="importResult" class="import-result">Imported {{ importResult.imported }} of {{ importResult.sourceRows }} rows: {{ importResult.inserted }} new, {{ importResult.updated }} updated. Suggested fit: {{ importResult.suggestedFits.strong }} strong, {{ importResult.suggestedFits.possible }} possible, {{ importResult.suggestedFits.weak }} weak and {{ importResult.suggestedFits.excluded }} excluded.</p>
         </form>
-        <section class="records card"><h2>Affiliate platforms</h2><article v-for="item in programmes" :key="item._id" class="record"><div><strong>{{ item.name }}</strong><p>{{ item.network }} · {{ item.status }}</p><small>{{ platformTiming(item) }} · {{ programmeProductCount(item) }} products</small></div><div class="record-actions"><a v-if="item.dashboardUrl" class="button primary" :href="item.dashboardUrl" target="_blank" rel="noopener">Open dashboard</a><button @click="markChecked(item)">Checked today</button><button @click="editProgramme(item)">Edit</button></div></article><p v-if="!programmes.length">No affiliate platforms yet.</p></section>
+
+        <div class="workspace">
+          <form class="editor card" @submit.prevent="saveProgramme">
+            <header><p class="eyebrow">Affiliate control centre</p><h2>{{ programmeForm._id ? 'Edit affiliate platform' : 'Add affiliate platform' }}</h2></header>
+            <div class="two"><Field label="Programme or retailer"><input v-model.trim="programmeForm.name" required /></Field><Field label="Network or platform"><input v-model.trim="programmeForm.network" required /></Field></div>
+            <Field label="Dashboard login URL"><input v-model.trim="programmeForm.dashboardUrl" type="url" /></Field>
+            <Field label="Application URL"><input v-model.trim="programmeForm.applicationUrl" type="url" /></Field>
+            <div class="two"><Field label="Programme status"><select v-model="programmeForm.status"><option v-for="status in programmeStatuses" :key="status" :value="status">{{ status }}</option></select></Field><Field label="Review decision"><select v-model="programmeForm.reviewDecision"><option v-for="decision in reviewDecisions" :key="decision" :value="decision">{{ decision }}</option></select></Field></div>
+            <Field label="Contact email"><input v-model.trim="programmeForm.contactEmail" type="email" /></Field>
+            <div class="two"><Field label="Last checked"><input v-model="programmeForm.lastCheckedAt" type="date" /></Field><Field label="Check again on"><input v-model="programmeForm.nextCheckDueAt" type="date" /></Field></div>
+            <Field label="Notes"><textarea v-model.trim="programmeForm.notes" rows="5"></textarea></Field>
+            <FormActions :editing="!!programmeForm._id" :saving="saving" @cancel="resetProgramme" />
+          </form>
+
+          <section class="records card prospect-records">
+            <div class="records-heading"><div><h2>Partner prospects</h2><p>{{ filteredProgrammes.length }} matching records</p></div></div>
+            <div class="prospect-filters">
+              <Field label="Search"><input v-model.trim="programmeSearch" type="search" placeholder="Name, description or sector" /></Field>
+              <Field label="Suggested fit"><select v-model="fitFilter"><option value="all">All suggestions</option><option v-for="fit in suggestedFits" :key="fit" :value="fit">{{ fit }}</option></select></Field>
+              <Field label="Your decision"><select v-model="decisionFilter"><option value="all">All decisions</option><option v-for="decision in reviewDecisions" :key="decision" :value="decision">{{ decision }}</option></select></Field>
+            </div>
+            <article v-for="item in visibleProgrammes" :key="item._id" class="record prospect-record">
+              <div>
+                <strong>{{ item.name }}</strong><span class="fit-badge" :class="`fit-${item.suggestedFit || 'unscored'}`">{{ item.prospectScore ?? '—' }} · {{ item.suggestedFit || 'unscored' }}</span>
+                <p>{{ item.network }} · {{ item.status }}<template v-if="item.awin"> · {{ item.awin.primaryRegion }} · {{ item.awin.primarySector }}</template></p>
+                <p v-if="item.awin?.descriptionShort" class="prospect-description">{{ item.awin.descriptionShort }}</p>
+                <small v-if="item.awin">Payment {{ item.awin.paymentStatus }} / risk {{ item.awin.paymentRiskLevel }} · approval {{ formatMetric(item.awin.approvalRate, '%') }} · conversion {{ formatMetric(item.awin.conversionRate, '%') }} · cookie {{ item.awin.cookieLengthDays ?? '—' }} days</small>
+                <small v-else>{{ platformTiming(item) }} · {{ programmeProductCount(item) }} products</small>
+              </div>
+              <div class="record-actions prospect-actions">
+                <a v-if="item.applicationUrl" class="button primary" :href="item.applicationUrl" target="_blank" rel="noopener">Open in Awin</a>
+                <select :value="item.reviewDecision || 'unreviewed'" aria-label="Review decision" @change="setReviewDecision(item, $event.target.value)"><option v-for="decision in reviewDecisions" :key="decision" :value="decision">{{ decision }}</option></select>
+                <button @click="editProgramme(item)">Edit</button>
+              </div>
+            </article>
+            <p v-if="!filteredProgrammes.length">No prospects match these filters.</p>
+            <button v-if="visibleProgrammes.length < filteredProgrammes.length" class="button show-more" type="button" @click="programmeLimit += 50">Show 50 more</button>
+          </section>
+        </div>
       </section>
 
       <section v-else class="access-panel card">
@@ -136,22 +175,28 @@ const FormActions = defineComponent({ props:{editing:Boolean,saving:Boolean}, em
 const ChoiceGroup = defineComponent({ props:{title:String,modelValue:Array,options:Array}, emits:['update:modelValue'], setup(p,{emit}){const toggle=v=>emit('update:modelValue',p.modelValue.includes(v)?p.modelValue.filter(x=>x!==v):[...p.modelValue,v]);return()=>h('fieldset',{class:'choice-group'},[h('legend',p.title),h('div',{class:'choice-grid'},p.options.map(v=>h('label',{class:{selected:p.modelValue.includes(v)}},[h('input',{type:'checkbox',checked:p.modelValue.includes(v),onChange:()=>toggle(v)}),v])))]);} });
 const RecordList = defineComponent({ props:{title:String,items:Array,empty:String}, setup(p,{slots}){return()=>h('section',{class:'records card'},[h('h2',p.title),...(p.items?.length?p.items.map(item=>h('article',{class:'record',key:item._id},[h('div',[h('strong',item.name||item.email),h('p',slots.summary?.({item})),h('small',slots.status?.({item}))]),h('div',{class:'record-actions'},slots.actions?.({item}))])):[h('p',p.empty)])]);} });
 
-const tabs=[{key:'products',label:'Products',help:'AI or manual creation'},{key:'makers',label:'Makers',help:'Reusable stories'},{key:'guides',label:'Gift guides',help:'Editorial collections'},{key:'platforms',label:'Affiliate platforms',help:'Dashboards and checks'},{key:'access',label:'Access',help:'Approved admins'}];
+const tabs=[{key:'products',label:'Products',help:'AI or manual creation'},{key:'makers',label:'Makers',help:'Reusable stories'},{key:'guides',label:'Gift guides',help:'Editorial collections'},{key:'platforms',label:'Partners',help:'Prospects and applications'},{key:'access',label:'Access',help:'Approved admins'}];
 const moodOptions=['one of a kind','elegant','meaningful','unexpected','playful','beautifully useful'];
 const recipientOptions=['partner','parent','teenager','friend','teacher','couple','someone who has everything'];
 const occasionOptions=['birthday','anniversary','wedding','new home','Christmas','thank you'];
 const qualityOptions=['handmade','personalised','limited edition','made in Britain','small batch','sustainable claim'];
 const productTypes=['physical','digital','subscription','experience','service'];
 const programmeStatuses=['researching','applied','approved','declined','paused','closed'];
+const reviewDecisions=['unreviewed','shortlisted','maybe','rejected'];
+const suggestedFits=['strong','possible','weak','excluded','unscored'];
 
 const activeTab=ref('products'),productMode=ref('ai'),loading=ref(true),saving=ref(false),error=ref(''),message=ref('');
 const products=ref([]),brands=ref([]),collections=ref([]),programmes=ref([]),users=ref([]);
+const importing=ref(false),importResult=ref(null),awinFile=ref(null),programmeSearch=ref(''),fitFilter=ref('all'),decisionFilter=ref('all'),programmeLimit=ref(50);
+const awinImport=reactive({publisherId:'3048673',region:'GB'});
 const blankProduct=()=>({_id:'',name:'',slug:'',brand:'',shortDescription:'',curatorNote:'',price:null,productType:'physical',brandSortOrder:0,productUrl:'',affiliateUrl:'',imageUrl:'',tagsText:'',moods:[],recipients:[],occasions:[],qualities:[],featured:false,active:true,published:false});
 const blankBrand=()=>({_id:'',name:'',slug:'',tagline:'',description:'',story:'',curatorNote:'',website:'',affiliateUrl:'',affiliateProgramme:'',logoUrl:'',heroImageUrl:'',galleryImagesText:'',country:'United Kingdom',moods:[],recipients:[],occasions:[],qualities:[],independent:true,smallBusiness:true,featured:false,approved:false,active:true,published:false});
 const blankCollection=()=>({_id:'',name:'',slug:'',description:'',imageUrl:'',products:[],featured:false,active:true,published:false});
-const blankProgramme=()=>({_id:'',name:'',network:'Direct',status:'researching',applicationUrl:'',dashboardUrl:'',contactEmail:'',lastCheckedAt:'',nextCheckDueAt:'',notes:'',active:true});
+const blankProgramme=()=>({_id:'',name:'',network:'Direct',status:'researching',reviewDecision:'unreviewed',applicationUrl:'',dashboardUrl:'',contactEmail:'',lastCheckedAt:'',nextCheckDueAt:'',notes:'',active:true});
 const productForm=reactive(blankProduct()),brandForm=reactive(blankBrand()),collectionForm=reactive(blankCollection()),programmeForm=reactive(blankProgramme());
 const counts=computed(()=>({products:products.value.length,makers:brands.value.length,guides:collections.value.length,platforms:programmes.value.length,access:users.value.length}));
+const filteredProgrammes=computed(()=>{const query=programmeSearch.value.toLowerCase();return [...programmes.value].filter(item=>{const text=`${item.name} ${item.awin?.descriptionShort||''} ${item.awin?.primarySector||''}`.toLowerCase();return(!query||text.includes(query))&&(fitFilter.value==='all'||(item.suggestedFit||'unscored')===fitFilter.value)&&(decisionFilter.value==='all'||(item.reviewDecision||'unreviewed')===decisionFilter.value);}).sort((a,b)=>(b.prospectScore??-1)-(a.prospectScore??-1)||a.name.localeCompare(b.name));});
+const visibleProgrammes=computed(()=>filteredProgrammes.value.slice(0,programmeLimit.value));
 
 function replace(t,v){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,v);}
 function slugify(v){return String(v||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');}
@@ -161,9 +206,11 @@ function resetProduct(){replace(productForm,blankProduct());productMode.value='a
 function resetBrand(){replace(brandForm,blankBrand());}
 function resetCollection(){replace(collectionForm,blankCollection());}
 function resetProgramme(){replace(programmeForm,blankProgramme());}
+function chooseAwinFile(event){awinFile.value=event.target.files?.[0]||null;}
 
 async function loadAll(){loading.value=true;error.value='';try{const [p,b,c,a,u]=await Promise.all([API.get('/admin/products'),API.get('/admin/brands'),API.get('/admin/collections'),API.get('/admin/affiliate-programmes'),API.get('/admin/users')]);products.value=p.data;brands.value=b.data;collections.value=c.data;programmes.value=a.data;users.value=u.data;}catch(e){error.value=e?.response?.data?.message||'Unable to load administration.';}finally{loading.value=false;}}
 async function run(action,text){saving.value=true;error.value='';try{await action();await loadAll();flash(text);}catch(e){error.value=e?.response?.data?.message||'The change could not be saved.';}finally{saving.value=false;}}
+async function importAwinDirectory(){if(!awinFile.value){error.value='Choose the Awin advertiser CSV first.';return;}importing.value=true;error.value='';try{const data=new FormData();data.append('file',awinFile.value);data.append('publisherId',awinImport.publisherId);data.append('region',awinImport.region.toUpperCase());const response=await API.post('/admin/affiliate-programmes/import/awin',data);importResult.value=response.data;await loadAll();flash('Awin prospect database imported.');}catch(e){error.value=e?.response?.data?.message||'The Awin directory could not be imported.';}finally{importing.value=false;}}
 
 function editProduct(item){replace(productForm,{...blankProduct(),...item,brand:item.brand?._id||item.brand||'',tagsText:(item.tags||[]).join(', '),moods:item.moods||[],recipients:item.recipients||[],occasions:item.occasions||[],qualities:item.qualities||[],published:!!item.publishedAt});productMode.value='manual';window.scrollTo({top:0,behavior:'smooth'});}
 function editBrand(item){replace(brandForm,{...blankBrand(),...item,affiliateProgramme:item.affiliateProgramme?._id||item.affiliateProgramme||'',galleryImagesText:(item.galleryImages||[]).join('\n'),moods:item.moods||[],recipients:item.recipients||[],occasions:item.occasions||[],qualities:item.qualities||[],published:!!item.publishedAt});window.scrollTo({top:0,behavior:'smooth'});}
@@ -176,19 +223,23 @@ async function saveBrand(){const id=brandForm._id,payload={...brandForm,slug:bra
 async function saveCollection(){const id=collectionForm._id,payload={...collectionForm,slug:collectionForm.slug||slugify(collectionForm.name),publishedAt:collectionForm.published?(collections.value.find(v=>v._id===id)?.publishedAt||new Date().toISOString()):null};delete payload._id;delete payload.published;await run(async()=>{await(id?API.put(`/admin/collections/${id}`,payload):API.post('/admin/collections',payload));resetCollection();},'Gift guide saved.');}
 async function saveProgramme(){const id=programmeForm._id,payload={...programmeForm,lastCheckedAt:programmeForm.lastCheckedAt||null,nextCheckDueAt:programmeForm.nextCheckDueAt||null};delete payload._id;await run(async()=>{await(id?API.put(`/admin/affiliate-programmes/${id}`,payload):API.post('/admin/affiliate-programmes',payload));resetProgramme();},'Affiliate platform saved.');}
 async function markChecked(item){const next=new Date();next.setMonth(next.getMonth()+1);const {_id,createdAt,updatedAt,__v,...editable}=item;await run(()=>API.put(`/admin/affiliate-programmes/${_id}`,{...editable,lastCheckedAt:new Date().toISOString(),nextCheckDueAt:next.toISOString()}),'Platform marked as checked.');}
+async function setReviewDecision(item,reviewDecision){error.value='';try{const response=await API.patch(`/admin/affiliate-programmes/${item._id}/review`,{reviewDecision});Object.assign(item,response.data);flash(`Marked ${item.name} as ${reviewDecision}.`);}catch(e){error.value=e?.response?.data?.message||'The review decision could not be saved.';}}
 function programmeProductCount(programme){return products.value.filter(p=>String(p.affiliateProgramme?._id||p.affiliateProgramme||'')===String(programme._id)).length;}
 function platformTiming(item){if(item.nextCheckDueAt)return `Next check ${new Intl.DateTimeFormat('en-GB',{dateStyle:'medium'}).format(new Date(item.nextCheckDueAt))}`;return item.lastCheckedAt?'Previously checked':'Not checked yet';}
+function formatMetric(value,suffix=''){return value===null||value===undefined?'—':`${Number(value).toFixed(2)}${suffix}`;}
 onMounted(loadAll);
 </script>
 
 <style scoped>
 .admin-shell{max-width:1180px;margin:auto;text-align:left;min-width:0}.admin-heading{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.5rem}.admin-heading h1{font-size:clamp(2rem,5vw,2.4rem);margin:.3rem 0;line-height:1.05}.admin-heading p,.ai-choice p{color:var(--bb-muted);line-height:1.5}.eyebrow{color:var(--bb-primary-dark);font-weight:900;text-transform:uppercase;letter-spacing:.09em;font-size:.76rem}.tabs-hint{display:none}.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:.65rem;margin-bottom:1rem}.tabs button{position:relative;display:grid;gap:.2rem;min-height:76px;text-align:left;padding:.85rem;border:1px solid var(--bb-border);border-radius:14px;background:var(--bb-surface);color:var(--bb-text);cursor:pointer}.tabs button.active{border-color:var(--bb-primary-dark);box-shadow:0 0 0 2px color-mix(in srgb,var(--bb-primary-dark) 20%,transparent)}.tabs small{color:var(--bb-muted);line-height:1.3}.tabs b{position:absolute;right:.7rem;top:.7rem}.products-section,.workspace{display:grid;grid-template-columns:minmax(360px,.95fr) minmax(380px,1.05fr);gap:1rem;align-items:start}.creation-card,.card,.notice{min-width:0;border:1px solid var(--bb-border);border-radius:18px;padding:1.1rem;background:var(--bb-surface);box-shadow:var(--bb-shadow-sm)}.creation-heading{display:flex;justify-content:space-between;gap:1rem;align-items:center}.creation-heading h2{margin:.2rem 0}.mode-toggle{display:flex;border:1px solid var(--bb-border);border-radius:12px;padding:.2rem}.mode-toggle button{min-height:42px;border:0;border-radius:9px;padding:.55rem .7rem;background:transparent;color:var(--bb-text);cursor:pointer}.mode-toggle button.active{background:var(--bb-primary-dark);color:white}.ai-choice{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1.2rem;border:1px dashed var(--bb-primary-dark);border-radius:14px;margin-top:1rem}.ai-choice h3{margin-top:0}.editor{display:grid;gap:.9rem;margin-top:1rem}.field{display:grid;gap:.35rem;min-width:0}.field>span{font-weight:800}.field input,.field select,.field textarea{width:100%;min-width:0;min-height:46px;border:1px solid var(--bb-border);border-radius:10px;padding:.72rem;background:var(--bb-bg);color:var(--bb-text);font:inherit}.field textarea{min-height:96px;resize:vertical}.field select[multiple]{min-height:220px}.two{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.choice-group{min-width:0;border:1px solid var(--bb-border);border-radius:14px;padding:.8rem}.choice-group legend{font-weight:800}.choice-grid,.checks,.actions,.record-actions{display:flex;flex-wrap:wrap;gap:.5rem}.choice-grid label,.checks label{display:flex;align-items:center;gap:.4rem;min-height:42px}.choice-grid label{padding:.5rem .65rem;border:1px solid var(--bb-border);border-radius:999px;cursor:pointer}.choice-grid label.selected{border-color:var(--bb-primary-dark);background:color-mix(in srgb,var(--bb-primary-dark) 9%,transparent)}.choice-grid input,.checks input{width:18px;height:18px}.button,.record button,.record a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--bb-border);border-radius:10px;padding:.65rem .85rem;background:var(--bb-surface);color:var(--bb-text);text-decoration:none;cursor:pointer}.button.primary{background:var(--bb-primary-dark);color:white}.records{display:grid;gap:.75rem}.records h2{margin-top:0}.record{display:flex;justify-content:space-between;gap:1rem;padding:.85rem 0;border-bottom:1px solid var(--bb-border);min-width:0}.record>div:first-child{min-width:0}.record strong,.record p,.record small,.access-list span{overflow-wrap:anywhere}.record p{margin:.25rem 0;color:var(--bb-muted)}.record small{color:var(--bb-muted)}.notice.error{color:#b33}.notice.success{color:#17652c;margin-bottom:1rem}.access-panel{display:grid;grid-template-columns:.8fr 1.2fr;gap:1.5rem}.access-list{display:grid;gap:.6rem}.access-list article{display:grid;gap:.25rem;padding:.8rem;border:1px solid var(--bb-border);border-radius:12px}
+.platform-section{display:grid;gap:1rem}.import-card{display:grid;grid-template-columns:minmax(260px,1.2fr) minmax(220px,.8fr) minmax(220px,.8fr) auto;gap:1rem;align-items:end}.import-card h2{margin:.25rem 0}.import-card .form-intro{margin-bottom:0}.import-result{grid-column:1/-1;margin:0;padding:.75rem;border-radius:10px;background:color-mix(in srgb,var(--bb-primary-dark) 9%,transparent);line-height:1.45}.records-heading{display:flex;justify-content:space-between;align-items:start}.records-heading h2{margin-bottom:.2rem}.records-heading p{margin:0;color:var(--bb-muted)}.prospect-filters{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:.6rem;padding-bottom:.5rem;border-bottom:1px solid var(--bb-border)}.prospect-record{align-items:flex-start}.fit-badge{display:inline-flex;margin-left:.5rem;padding:.2rem .45rem;border:1px solid var(--bb-border);border-radius:999px;font-size:.74rem;font-weight:800;text-transform:capitalize}.fit-strong{color:#17652c;border-color:#4da567;background:#e9f6ed}.fit-possible{color:#735100;border-color:#c4a24c;background:#fff8df}.fit-weak,.fit-unscored{color:var(--bb-muted)}.fit-excluded{color:#9a3434;border-color:#c87575;background:#fff0f0}.prospect-description{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}.prospect-actions{justify-content:flex-end;min-width:145px}.prospect-actions select{min-height:44px;max-width:145px;border:1px solid var(--bb-border);border-radius:10px;padding:.55rem;background:var(--bb-bg);color:var(--bb-text)}.show-more{justify-self:center}
+@media(max-width:1050px){.import-card{grid-template-columns:1fr 1fr}.import-card>div:first-child,.import-result{grid-column:1/-1}}
 @media(max-width:900px){.products-section,.workspace,.access-panel{grid-template-columns:1fr}.tabs{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:680px){
  .admin-shell{padding:.25rem 0 1rem}.admin-heading{flex-direction:column;align-items:stretch;margin-bottom:1rem}.admin-heading .button{align-self:flex-start}.admin-heading h1{font-size:2rem}
  .tabs-hint{display:flex;justify-content:flex-end;gap:.35rem;margin:0 .1rem .45rem;color:var(--bb-muted);font-size:.78rem}.tabs{display:flex;grid-template-columns:none;gap:.6rem;margin:0 -.5rem 1rem;padding:0 .5rem .7rem;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs::-webkit-scrollbar{display:none}.tabs button{flex:0 0 76vw;max-width:245px;min-height:78px;scroll-snap-align:start}
  .creation-card,.card,.notice{padding:.9rem;border-radius:16px}.creation-heading,.ai-choice,.record{flex-direction:column;align-items:stretch}.creation-heading{gap:.7rem}.mode-toggle{width:100%}.mode-toggle button{flex:1}.ai-choice{padding:1rem}.ai-choice .button{width:100%}
- .two{grid-template-columns:1fr}.editor{gap:.8rem}.choice-grid{flex-wrap:nowrap;overflow-x:auto;margin:0 -.25rem;padding:.15rem .25rem .55rem;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}.choice-grid::-webkit-scrollbar{display:none}.choice-grid label{flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}.checks{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .6rem}.actions{display:grid;grid-template-columns:1fr 1fr}.actions .button:only-child{grid-column:1/-1}.record-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.record-actions .button,.record-actions button,.record-actions a{width:100%}.record-actions .primary{grid-column:1/-1}.access-panel{gap:1rem}
+ .two,.import-card,.prospect-filters{grid-template-columns:1fr}.import-card>div:first-child,.import-result{grid-column:auto}.editor{gap:.8rem}.choice-grid{flex-wrap:nowrap;overflow-x:auto;margin:0 -.25rem;padding:.15rem .25rem .55rem;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}.choice-grid::-webkit-scrollbar{display:none}.choice-grid label{flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}.checks{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .6rem}.actions{display:grid;grid-template-columns:1fr 1fr}.actions .button:only-child{grid-column:1/-1}.record-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.record-actions .button,.record-actions button,.record-actions a{width:100%}.record-actions .primary{grid-column:1/-1}.prospect-actions select{max-width:none;width:100%}.access-panel{gap:1rem}
 }
 @media(max-width:390px){.tabs button{flex-basis:82vw}.checks,.actions,.record-actions{grid-template-columns:1fr}.record-actions .primary{grid-column:auto}}
 .form-intro{color:var(--bb-muted);line-height:1.5}
