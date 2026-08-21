@@ -1,5 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const multer = require("multer");
 
 const Product = require("../models/Product");
 const Brand = require("../models/Brand");
@@ -7,6 +8,11 @@ const Collection = require("../models/Collection");
 const AffiliateProgramme = require("../models/AffiliateProgramme");
 const requireVerified2FA = require("../middleware/requireVerified2FA");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const {
+  normaliseProgrammeName,
+  parseAwinCsv,
+  prepareAwinProgramme,
+} = require("../utils/awinAdvertiserImport");
 const {
   cleanStringList,
   isSafePublicUrl,
@@ -16,6 +22,21 @@ const {
 
 const router = express.Router();
 const adminOnly = [requireVerified2FA, roleMiddleware("admin")];
+const awinCsvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { files: 1, fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const csvFile = file.originalname.toLowerCase().endsWith(".csv") || file.mimetype === "text/csv";
+    callback(csvFile ? null : new Error("Please upload an Awin CSV export"), csvFile);
+  },
+}).single("file");
+
+function receiveAwinCsv(req, res, next) {
+  awinCsvUpload(req, res, (error) => {
+    if (error) return res.status(400).json({ message: error.message || "Unable to read the CSV" });
+    next();
+  });
+}
 
 function safeRegex(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -335,8 +356,128 @@ router.put("/admin/collections/:id", ...adminOnly, validate("collection"), async
 router.get("/admin/affiliate-programmes", ...adminOnly, async (_req, res) => {
   res.json(await AffiliateProgramme.find().sort({ updatedAt: -1 }));
 });
+router.post("/admin/affiliate-programmes/import/awin", ...adminOnly, receiveAwinCsv, async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ message: "Choose an Awin CSV export to import" });
+
+    const region = String(req.body.region || "GB").trim().toUpperCase();
+    const publisherId = String(req.body.publisherId || "").trim();
+    if (publisherId && !/^\d+$/.test(publisherId)) {
+      return res.status(400).json({ message: "Awin publisher ID must contain numbers only" });
+    }
+
+    const rows = await parseAwinCsv(req.file.buffer.toString("utf8"));
+    const existing = await AffiliateProgramme.find({
+      $or: [
+        { network: /^awin$/i },
+        { "awin.advertiserId": { $exists: true } },
+      ],
+    });
+    const byAdvertiserId = new Map();
+    const byName = new Map();
+    for (const item of existing) {
+      if (item.awin?.advertiserId) byAdvertiserId.set(String(item.awin.advertiserId), item);
+      byName.set(normaliseProgrammeName(item.name), item);
+    }
+
+    const now = new Date();
+    const operations = [];
+    const seenIds = new Set();
+    const suggestedFits = { strong: 0, possible: 0, weak: 0, excluded: 0 };
+    let matchedRegion = 0;
+    let inserted = 0;
+    let updated = 0;
+    let invalid = 0;
+    let duplicateRows = 0;
+
+    for (const row of rows) {
+      const prepared = prepareAwinProgramme(row, { publisherId, importedAt: now });
+      if (!prepared) {
+        invalid += 1;
+        continue;
+      }
+      if (region && prepared.awin.primaryRegion !== region) continue;
+      matchedRegion += 1;
+      if (seenIds.has(prepared.awin.advertiserId)) {
+        duplicateRows += 1;
+        continue;
+      }
+      seenIds.add(prepared.awin.advertiserId);
+      suggestedFits[prepared.suggestedFit] += 1;
+
+      const match = byAdvertiserId.get(prepared.awin.advertiserId)
+        || byName.get(normaliseProgrammeName(prepared.name));
+      const importedFields = {
+        source: prepared.source,
+        applicationUrl: prepared.applicationUrl,
+        commissionType: prepared.commissionType,
+        commissionValue: prepared.commissionValue,
+        cookieDurationDays: prepared.cookieDurationDays,
+        suggestedFit: prepared.suggestedFit,
+        prospectScore: prepared.prospectScore,
+        fitReasons: prepared.fitReasons,
+        riskFlags: prepared.riskFlags,
+        awin: prepared.awin,
+      };
+
+      if (match) {
+        updated += 1;
+        operations.push({
+          updateOne: {
+            filter: { _id: match._id },
+            update: { $set: importedFields },
+          },
+        });
+      } else {
+        inserted += 1;
+        operations.push({
+          insertOne: {
+            document: {
+              ...prepared,
+              reviewDecision: "unreviewed",
+              active: true,
+            },
+          },
+        });
+      }
+    }
+
+    if (operations.length) await AffiliateProgramme.bulkWrite(operations, { ordered: false });
+
+    res.status(201).json({
+      sourceRows: rows.length,
+      region: region || "All",
+      matchedRegion,
+      imported: operations.length,
+      inserted,
+      updated,
+      invalid,
+      duplicateRows,
+      suggestedFits,
+    });
+  } catch (error) {
+    console.error("Failed to import Awin advertiser directory:", error);
+    sendAdminError(res, error);
+  }
+});
 router.post("/admin/affiliate-programmes", ...adminOnly, validate("programme"), async (req, res) => {
   try { res.status(201).json(await AffiliateProgramme.create(req.body)); } catch (error) { sendAdminError(res, error); }
+});
+router.patch("/admin/affiliate-programmes/:id/review", ...adminOnly, async (req, res) => {
+  try {
+    const allowed = new Set(["unreviewed", "shortlisted", "maybe", "rejected"]);
+    const reviewDecision = String(req.body.reviewDecision || "");
+    if (!allowed.has(reviewDecision)) return res.status(400).json({ message: "Invalid review decision" });
+    const item = await AffiliateProgramme.findByIdAndUpdate(
+      req.params.id,
+      { reviewDecision, reviewedAt: reviewDecision === "unreviewed" ? null : new Date() },
+      { new: true, runValidators: true }
+    );
+    if (!item) return res.status(404).json({ message: "Affiliate programme not found" });
+    res.json(item);
+  } catch (error) {
+    sendAdminError(res, error);
+  }
 });
 router.put("/admin/affiliate-programmes/:id", ...adminOnly, validate("programme"), async (req, res) => {
   try {
