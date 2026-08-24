@@ -11,10 +11,12 @@ import ProductJsonImport from "../views/ProductJsonImport.vue";
 import EditorialStandardsView from "../views/EditorialStandardsView.vue";
 import ForPartnersView from "../views/ForPartnersView.vue";
 import PartnerConceptView from "../views/PartnerConceptView.vue";
+import AboutView from "../views/AboutView.vue";
 
 const routes = [
   { path: "/", name: "Home", component: HomeView, meta: { public: true, title: "BundleBee | Distinctive gifts from independent makers", description: "Discover thoughtful gifts, original art and beautifully useful products from independent makers, artists and specialist shops across the UK.", indexable: true } },
   { path: "/makers/:slug", name: "Maker", component: MakerView, meta: { public: true, title: "BundleBee maker edit", indexable: true } },
+  { path: "/about", name: "About", component: AboutView, meta: { public: true, title: "About BundleBee | A specialist gift shop", description: "BundleBee is a specialist gift shop for thoughtful, distinctive and beautifully made things that are worth discovering.", indexable: true } },
   { path: "/for-partners", name: "ForPartners", component: ForPartnersView, meta: { public: true, title: "For partners | BundleBee", description: "See how BundleBee creates focused editorial shop windows for distinctive makers, studios and specialist retailers.", indexable: true } },
   { path: "/editorial-standards", name: "EditorialStandards", component: EditorialStandardsView, meta: { public: true, title: "Editorial standards | BundleBee", description: "Read BundleBee's editorial selection, publication and affiliate disclosure standards.", indexable: true } },
   { path: "/preview/:token", name: "PartnerConcept", component: PartnerConceptView, meta: { public: true, title: "Private partner concept | BundleBee", indexable: false } },

@@ -1,15 +1,15 @@
 const DEFAULT_CONCEPT = {
   eyebrow: "A considered shop window",
   headline: "A distinctive point of view, made easy to explore",
-  introduction: "BundleBee would introduce this partner through a concise editorial story, then offer a deliberately small set of ways into the collection.",
+  introduction: "A collection with a character of its own, full of pieces chosen to make ordinary moments feel more considered.",
   moods: ["meaningful", "unexpected", "beautifully useful"],
   occasions: ["birthday", "thank you", "someone hard to buy for"],
   windows: [
     { title: "The signature edit", text: "A few pieces that express the character of the collection at a glance." },
     { title: "The story behind it", text: "The craft, materials and point of view that make the work worth discovering." },
-    { title: "Choose by feeling", text: "A human route into the range: who it is for, how it should feel and why it fits the moment." },
+    { title: "Choose by feeling", text: "Find the piece that suits the person, the moment and the feeling you want to leave behind." },
   ],
-  curatorNote: "The concept gives the partner room to feel like a shop with a story—not another row in a product directory.",
+  curatorNote: "There is a clear point of view here—and the pleasure of finding something that does not feel obvious.",
 };
 
 const CONCEPTS = [
@@ -22,10 +22,10 @@ const CONCEPTS = [
     occasions: ["anniversary", "milestone birthday", "a deeply personal thank you"],
     windows: [
       { title: "Modern talismans", text: "Pieces selected for symbolism, intimacy and the feeling of being kept for years." },
-      { title: "Beauty in the irregular", text: "An editorial moment about handwork, natural stones and forms that retain their individuality." },
-      { title: "For the quietly individual", text: "A route for someone who values provenance and character over obvious luxury." },
+      { title: "Beauty in the irregular", text: "Handwork, natural stones and forms that retain their individuality." },
+      { title: "For the quietly individual", text: "For someone who values provenance and character over obvious luxury." },
     ],
-    curatorNote: "Pippa Small fits BundleBee when the jewellery is presented as a world of craft and values—not an exhaustive catalogue.",
+    curatorNote: "The natural forms and signs of the maker’s hand give these pieces the intimacy of something already treasured.",
   },
   {
     match: ["moyses stevens", "moyses flowers"],
@@ -45,7 +45,7 @@ const CONCEPTS = [
     match: ["argento"],
     eyebrow: "Jewellery for everyday milestones",
     headline: "Small pieces that make the moment feel properly marked",
-    introduction: "An approachable jewellery edit organised by personality and occasion, with the emphasis on thoughtful selection rather than endless choice.",
+    introduction: "Approachable jewellery with enough personality to mark an occasion and enough ease to be worn every day.",
     moods: ["elegant", "playful", "meaningful"],
     occasions: ["birthday", "anniversary", "friendship"],
     windows: [
@@ -53,13 +53,13 @@ const CONCEPTS = [
       { title: "Keep it close", text: "Personal motifs and understated forms with keepsake potential." },
       { title: "Easy elegance", text: "Polished gifts that feel special without becoming formal." },
     ],
-    curatorNote: "BundleBee would narrow the range into useful emotional edits instead of recreating a jewellery department.",
+    curatorNote: "Small, wearable details can hold the memory of a birthday, friendship or everyday win.",
   },
   {
     match: ["partylite"],
     eyebrow: "Scent, glow and a change of pace",
     headline: "A small ritual for making home feel different tonight",
-    introduction: "A sensory shop window pairing fragrance and candlelight with the atmosphere someone wants to create at home.",
+    introduction: "Fragrance and candlelight chosen for the atmosphere they create: calmer evenings, warmer welcomes and brighter celebrations.",
     moods: ["cosy", "restorative", "celebratory"],
     occasions: ["new home", "thank you", "winter evening"],
     windows: [
@@ -67,7 +67,7 @@ const CONCEPTS = [
       { title: "Make it feel festive", text: "Warm, joyful combinations for hosting and seasonal rituals." },
       { title: "The useful indulgence", text: "A gift that is decorative, usable and easy to enjoy immediately." },
     ],
-    curatorNote: "The editorial opportunity is to sell an atmosphere, while keeping clearance items and catalogue bulk out of the window.",
+    curatorNote: "A good home gift changes the feeling of a room as well as the way it looks.",
   },
   {
     match: ["infinityxinfinity", "infinity x infinity"],
@@ -77,11 +77,11 @@ const CONCEPTS = [
     moods: ["one of a kind", "elegant", "expressive"],
     occasions: ["anniversary", "milestone", "self-gift"],
     windows: [
-      { title: "The gemstone edit", text: "Colour, texture and natural variation used as the starting point for discovery." },
+      { title: "The gemstone edit", text: "Begin with the colour, texture and natural variation that draws you in." },
       { title: "Made by hand", text: "The makers, methods and details that separate the work from machine-made jewellery." },
-      { title: "Only a few", text: "Limited quantities framed as individuality, not artificial urgency." },
+      { title: "Only a few", text: "Limited quantities mean the piece can retain a sense of individuality." },
     ],
-    curatorNote: "The handmade and limited-run story is a natural BundleBee fit when supported with specific, verifiable detail.",
+    curatorNote: "Natural stones, small variations and skilled handwork make each piece feel personal rather than perfected by machine.",
   },
   {
     match: ["curious egg"],
@@ -95,27 +95,27 @@ const CONCEPTS = [
       { title: "A home with an inner life", text: "Layered finds for people who want rooms to feel collected rather than styled by formula." },
       { title: "Small art, big effect", text: "Accessible ways to give an artist-led object without needing to know someone’s exact décor plan." },
     ],
-    curatorNote: "Curious Egg embodies the shop-window idea: a strong curatorial voice is more useful here than a conventional product grid.",
+    curatorNote: "The collection feels discovered rather than coordinated—art, objects and unexpected details with a creative life of their own.",
   },
   {
     match: ["t. h. baker", "t.h. baker", "th baker"],
     eyebrow: "Milestone gifts, edited with restraint",
     headline: "A clearer way through jewellery and watches",
-    introduction: "A focused occasion-led edit that helps a customer move past brand and price filters to the meaning of the gift.",
+    introduction: "Jewellery and watches for the years, achievements and relationships that deserve to be properly marked.",
     moods: ["elegant", "lasting", "significant"],
     occasions: ["anniversary", "graduation", "milestone birthday"],
     windows: [
       { title: "Mark the year", text: "Enduring choices for anniversaries, graduations and important birthdays." },
       { title: "Understated signatures", text: "Pieces selected for everyday longevity rather than conspicuous branding." },
-      { title: "A considered second life", text: "Pre-owned watches framed through craft, condition and lasting design." },
+      { title: "A considered second life", text: "Pre-owned watches chosen for craft, condition and lasting design." },
     ],
-    curatorNote: "This works best as a tightly edited milestone destination, not a mirror of a large multi-brand retailer.",
+    curatorNote: "The right watch or piece of jewellery can carry the memory of a milestone long after the day itself.",
   },
   {
     match: ["puzzleyou", "puzzle you"],
     eyebrow: "A memory you can spend time with",
     headline: "Turn a shared photograph into an evening together",
-    introduction: "A personalised-gift concept that focuses on the story in the image and the ritual of assembling it, not only the printed object.",
+    introduction: "A favourite photograph becomes both a keepsake and the promise of an evening spent putting the memory back together.",
     moods: ["meaningful", "playful", "personal"],
     occasions: ["anniversary", "family birthday", "Christmas"],
     windows: [
@@ -135,9 +135,9 @@ const CONCEPTS = [
     windows: [
       { title: "Set the tone", text: "Strong colour and typography for rooms that need energy or humour." },
       { title: "The personal reference", text: "A visual in-joke, interest or shared memory that makes wall art giftable." },
-      { title: "Build a small gallery", text: "A few complementary directions without turning the page into a poster catalogue." },
+      { title: "Build a small gallery", text: "Bring together a few complementary pieces to make the wall feel collected over time." },
     ],
-    curatorNote: "The best route is through visual personality and room mood, supported by a tightly controlled edit.",
+    curatorNote: "The most giftable art says something about the person receiving it—not simply the wall it will fill.",
   },
   {
     match: ["venchi"],
@@ -151,7 +151,7 @@ const CONCEPTS = [
       { title: "A taste of Piedmont", text: "Hazelnut-led traditions and signature textures introduced through their origins." },
       { title: "Pass it around", text: "Selections designed for sharing at a table, office or family gathering." },
     ],
-    curatorNote: "Venchi belongs in a celebratory food edit, with official affiliate offers only and no voucher-led presentation.",
+    curatorNote: "The pleasure begins with the beautiful box, then continues through texture, sharing and a taste of Italian chocolate tradition.",
   },
   {
     match: ["detective society"],
@@ -162,10 +162,10 @@ const CONCEPTS = [
     occasions: ["birthday", "date night", "family gathering"],
     windows: [
       { title: "Open the case", text: "The premise and first clues set the tone without spoiling the mystery." },
-      { title: "Choose your detectives", text: "A route by group size, pace and appetite for difficulty." },
+      { title: "Choose your detectives", text: "Pick the right group, pace and appetite for difficulty." },
       { title: "An evening, not an object", text: "The shared experience and conversation are placed ahead of the box itself." },
     ],
-    curatorNote: "This is exactly the sort of gift that benefits from selling the feeling of the experience rather than listing its contents.",
+    curatorNote: "It is a gift of anticipation, collaboration and the stories people tell after the case is closed.",
   },
   {
     match: ["anisa sojka"],
@@ -179,7 +179,7 @@ const CONCEPTS = [
       { title: "Polished, not precious", text: "Giftable accessories that feel elevated while remaining easy to wear." },
       { title: "Ready together", text: "A social, celebratory edit for friends, parties and wedding mornings." },
     ],
-    curatorNote: "The editorial hook is the feeling and ritual of wearing the pieces—not a long list of near-identical accessories.",
+    curatorNote: "These pieces make the small ritual of getting ready feel expressive, sociable and a little more special.",
   },
   {
     match: ["hiut denim"],
@@ -189,11 +189,11 @@ const CONCEPTS = [
     moods: ["beautifully useful", "authentic", "lasting"],
     occasions: ["milestone birthday", "partner", "buy once, wear often"],
     windows: [
-      { title: "Meet the GrandMasters", text: "The human skill and local manufacturing story leads the page." },
+      { title: "Meet the GrandMasters", text: "Discover the human skill behind every cut, seam and finished pair." },
       { title: "Choose your denim", text: "A small, intelligible guide to cloth, cut and how each pair will change with wear." },
-      { title: "The long relationship", text: "Durability, repair and personal fading framed as part of the gift." },
+      { title: "The long relationship", text: "Durability, repair and personal fading make the jeans more individual with time." },
     ],
-    curatorNote: "Hiut is a model BundleBee partner: a clear point of view, skilled making and a product made more valuable by knowing its story.",
+    curatorNote: "A pair of jeans becomes more valuable when you know the town, skill and decades of experience stitched into it.",
   },
   {
     match: ["bookkind"],
@@ -204,10 +204,10 @@ const CONCEPTS = [
     occasions: ["birthday", "new baby", "thank you"],
     windows: [
       { title: "For their inner world", text: "Books grouped by curiosity, comfort, humour and the kind of escape the recipient would enjoy." },
-      { title: "A gift with a second effect", text: "The giving model is explained clearly and factually, without turning the page into a claim-heavy campaign." },
+      { title: "A gift with a second effect", text: "The pleasure of choosing a book is joined by the generosity built into the purchase." },
       { title: "A handwritten-feeling edit", text: "A small shelf of recommendations that feels like advice from a thoughtful bookseller." },
     ],
-    curatorNote: "BookKind qualifies through giftability and purpose, but the selection should stay human-sized rather than becoming a general book catalogue.",
+    curatorNote: "A thoughtfully chosen book already feels personal; a wider act of giving makes the gesture travel further.",
   },
 ];
 
@@ -225,4 +225,3 @@ export function conceptForProgramme(name) {
   const match = CONCEPTS.find((concept) => concept.match.some((term) => normalisedName.includes(term)));
   return cloneConcept(match || DEFAULT_CONCEPT);
 }
-

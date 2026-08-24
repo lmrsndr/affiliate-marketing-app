@@ -62,7 +62,7 @@
       </div>
       <div v-if="loading" class="state">Loading thoughtful finds…</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
-      <div v-else-if="!products.length" class="state"><h3>The first shop windows are being curated</h3><p>Makers will appear here after their profile and tracked shop links have been reviewed.</p><div class="state-actions"><router-link class="btn secondary" to="/for-partners">See the shop-window approach</router-link><router-link class="btn secondary" to="/editorial-standards">Read our standards</router-link></div></div>
+      <div v-else-if="!products.length" class="state"><h3>The first shop windows are being prepared</h3><p>We are choosing the first makers, artists and specialist shops worth spending time with.</p><div class="state-actions"><router-link class="btn secondary" to="/about">What makes a BundleBee find?</router-link><a class="btn secondary" href="#how-it-works">How it works</a></div></div>
       <div v-else-if="!filteredProducts.length" class="state"><h3>No exact match yet</h3><p>Try removing one filter. A smaller catalogue is part of the point—we would rather show fewer good choices.</p></div>
       <div v-else class="maker-list">
         <article v-for="group in visibleMakerGroups" :key="group.maker.id" class="maker-window">
