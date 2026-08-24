@@ -1,0 +1,4 @@
+/preview/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: private, no-store, max-age=0
+

@@ -73,6 +73,11 @@ const affiliateProgrammeSchema = new mongoose.Schema(
       default: "unreviewed",
       index: true,
     },
+    previewToken: {
+      type: String,
+      trim: true,
+      select: false,
+    },
     reviewedAt: { type: Date, default: null },
     awin: { type: awinDirectorySchema, default: undefined },
     lastCheckedAt: { type: Date, default: null, index: true },
@@ -92,5 +97,9 @@ affiliateProgrammeSchema.index(
   }
 );
 affiliateProgrammeSchema.index({ "awin.primaryRegion": 1, suggestedFit: 1, prospectScore: -1 });
+affiliateProgrammeSchema.index(
+  { previewToken: 1 },
+  { unique: true, sparse: true }
+);
 
 module.exports = mongoose.model("AffiliateProgramme", affiliateProgrammeSchema);

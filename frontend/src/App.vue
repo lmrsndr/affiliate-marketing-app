@@ -6,6 +6,8 @@
       <nav class="bb-nav" aria-label="Main navigation">
         <router-link to="/">Shop</router-link>
         <a href="/#how-it-works">How it works</a>
+        <router-link to="/editorial-standards">Our standards</router-link>
+        <router-link to="/for-partners">For partners</router-link>
         <router-link to="/admin" rel="nofollow">Admin</router-link>
       </nav>
 
@@ -21,6 +23,11 @@
     <main class="bb-main">
       <router-view />
     </main>
+    <footer class="bb-footer">
+      <router-link to="/">BundleBee</router-link>
+      <span>Distinctive gifts, chosen with a point of view.</span>
+      <nav aria-label="Footer navigation"><router-link to="/editorial-standards">Editorial standards & affiliate disclosure</router-link><router-link to="/for-partners">For partners</router-link></nav>
+    </footer>
   </div>
 </template>
 
@@ -97,6 +104,7 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 .bb-actions{display:flex;align-items:center;justify-content:flex-end;gap:.45rem;min-width:0}
 .bb-toggle,.bb-signout{min-height:42px;padding:.5rem .75rem;border:1px solid var(--bb-border);border-radius:999px;background:var(--bb-surface);color:var(--bb-text);font-size:.9rem;white-space:nowrap;cursor:pointer}
 .bb-main{display:block;flex-grow:1;width:min(1180px,calc(100% - 28px));max-width:100%;min-width:0;margin:20px auto;padding:20px;border-radius:var(--bb-radius);background:var(--bb-surface);box-shadow:var(--bb-shadow-sm);overflow-x:clip}
+.bb-footer{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:center;width:min(1180px,calc(100% - 28px));padding:1.5rem .5rem 2.5rem;color:var(--bb-muted);font-size:.85rem}.bb-footer>a{color:var(--bb-primary-dark);font-size:1rem;font-weight:900;text-decoration:none}.bb-footer nav{display:flex;gap:1rem;justify-content:flex-end}.bb-footer nav a{color:var(--bb-muted)}
 @media(max-width:680px){
  .bb-header{grid-template-columns:minmax(0,1fr) auto;gap:.55rem;padding:8px max(10px,env(safe-area-inset-right)) 7px max(10px,env(safe-area-inset-left))}
  .bb-title{font-size:1.25rem}
@@ -104,5 +112,6 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
  .bb-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start;gap:.2rem;width:100%;margin:0;padding:0 0 2px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
  .bb-nav::-webkit-scrollbar{display:none}.bb-nav a{min-height:38px;padding:.45rem .65rem;font-size:.84rem;scroll-snap-align:start}
  .bb-main{width:100%;max-width:100%;margin:0;padding:10px max(8px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));border-radius:0;box-shadow:none;overflow-x:clip}
+ .bb-footer{grid-template-columns:1fr;width:100%;padding:1.2rem max(14px,env(safe-area-inset-right)) calc(2rem + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}.bb-footer nav{display:grid;justify-content:start;gap:.6rem}
 }
 </style>

@@ -135,6 +135,7 @@ GET  /api/brands
 GET  /api/brands/:slug
 GET  /api/collections
 GET  /api/collections/:slug
+GET  /api/partner-previews/:token
 ```
 
 Administrator endpoints require an authenticated administrator with verified 2FA:
@@ -151,6 +152,8 @@ PUT            /api/admin/affiliate-programmes/:id
 ```
 
 Shopping administration validates required fields, normalises slugs and tag lists, rejects negative prices, and rejects malformed or local/private retailer URLs.
+
+Applied programmes that have not been rejected by the owner receive an opaque concept-preview token. Their unlisted `/preview/:token` pages contain no live retailer links or partner imagery, return no-store headers, and are excluded from indexing. Moving a programme away from `applied`, marking it `rejected`, or making it inactive immediately disables the public preview endpoint.
 
 ## Migrating old subscription boxes
 
@@ -176,13 +179,14 @@ After migration, log in at `/admin`, review each brand and product, then publish
 ## Operator workflow
 
 1. Research an affiliate programme.
-2. Add the programme in the Admin area.
-3. Add and approve the brand.
-4. Add a product as a draft.
-5. Check its price, image, retailer URL and affiliate URL.
-6. Add useful tags and assign it to collections.
-7. Publish it.
-8. Review links and prices regularly.
+2. Add the programme in the Admin area and mark it `applied` after sending the join request.
+3. Share the generated private concept preview with the advertiser if useful.
+4. After approval, add and approve the brand.
+5. Add a product as a draft.
+6. Check its price, image, retailer URL and affiliate URL.
+7. Add useful tags and assign it to collections.
+8. Publish it.
+9. Review links and prices regularly.
 
 ## Production checklist
 

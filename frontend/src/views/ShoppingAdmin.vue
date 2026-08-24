@@ -148,6 +148,8 @@
               </div>
               <div class="record-actions prospect-actions">
                 <a v-if="item.applicationUrl" class="button primary" :href="item.applicationUrl" target="_blank" rel="noopener">Open in Awin</a>
+                <a v-if="hasConceptPreview(item)" class="button" :href="previewUrl(item)" target="_blank" rel="noopener nofollow">Open concept preview</a>
+                <button v-if="hasConceptPreview(item)" type="button" @click="copyPreviewLink(item)">Copy preview link</button>
                 <select :value="item.reviewDecision || 'unreviewed'" aria-label="Review decision" @change="setReviewDecision(item, $event.target.value)"><option v-for="decision in reviewDecisions" :key="decision" :value="decision">{{ decision }}</option></select>
                 <button @click="editProgramme(item)">Edit</button>
               </div>
@@ -227,6 +229,9 @@ async function setReviewDecision(item,reviewDecision){error.value='';try{const r
 function programmeProductCount(programme){return products.value.filter(p=>String(p.affiliateProgramme?._id||p.affiliateProgramme||'')===String(programme._id)).length;}
 function platformTiming(item){if(item.nextCheckDueAt)return `Next check ${new Intl.DateTimeFormat('en-GB',{dateStyle:'medium'}).format(new Date(item.nextCheckDueAt))}`;return item.lastCheckedAt?'Previously checked':'Not checked yet';}
 function formatMetric(value,suffix=''){return value===null||value===undefined?'—':`${Number(value).toFixed(2)}${suffix}`;}
+function hasConceptPreview(item){return item.status==='applied'&&item.reviewDecision!=='rejected'&&Boolean(item.previewToken);}
+function previewUrl(item){return `${window.location.origin}/preview/${item.previewToken}`;}
+async function copyPreviewLink(item){try{await navigator.clipboard.writeText(previewUrl(item));flash(`Preview link copied for ${item.name}.`);}catch{error.value='The preview link could not be copied. Open it and copy the address from your browser.';}}
 onMounted(loadAll);
 </script>
 

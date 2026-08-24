@@ -3,5 +3,6 @@ Allow: /
 Disallow: /admin
 Disallow: /login
 Disallow: /auth/
+Disallow: /preview/
 
 Sitemap: https://bundlebee.co.uk/sitemap.xml

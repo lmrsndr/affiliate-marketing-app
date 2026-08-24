@@ -8,10 +8,16 @@ import AdminLogin from "../views/AdminLogin.vue";
 import AuthCallback from "../views/AuthCallback.vue";
 import ShoppingAdmin from "../views/ShoppingAdmin.vue";
 import ProductJsonImport from "../views/ProductJsonImport.vue";
+import EditorialStandardsView from "../views/EditorialStandardsView.vue";
+import ForPartnersView from "../views/ForPartnersView.vue";
+import PartnerConceptView from "../views/PartnerConceptView.vue";
 
 const routes = [
-  { path: "/", name: "Home", component: HomeView, meta: { public: true, title: "BundleBee | Distinctive gifts from independent makers", indexable: true } },
+  { path: "/", name: "Home", component: HomeView, meta: { public: true, title: "BundleBee | Distinctive gifts from independent makers", description: "Discover thoughtful gifts, original art and beautifully useful products from independent makers, artists and specialist shops across the UK.", indexable: true } },
   { path: "/makers/:slug", name: "Maker", component: MakerView, meta: { public: true, title: "BundleBee maker edit", indexable: true } },
+  { path: "/for-partners", name: "ForPartners", component: ForPartnersView, meta: { public: true, title: "For partners | BundleBee", description: "See how BundleBee creates focused editorial shop windows for distinctive makers, studios and specialist retailers.", indexable: true } },
+  { path: "/editorial-standards", name: "EditorialStandards", component: EditorialStandardsView, meta: { public: true, title: "Editorial standards | BundleBee", description: "Read BundleBee's editorial selection, publication and affiliate disclosure standards.", indexable: true } },
+  { path: "/preview/:token", name: "PartnerConcept", component: PartnerConceptView, meta: { public: true, title: "Private partner concept | BundleBee", indexable: false } },
   { path: "/login", name: "AdminLogin", component: AdminLogin, meta: { public: true, title: "BundleBee administrator sign in", indexable: false } },
   { path: "/auth/callback", name: "AuthCallback", component: AuthCallback, meta: { public: true, title: "BundleBee sign in", indexable: false } },
   { path: "/admin", name: "ShoppingAdmin", component: ShoppingAdmin, meta: { requiresAdmin: true, title: "BundleBee administration", indexable: false } },
@@ -63,6 +69,23 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   document.title = String(to.meta?.title || "BundleBee");
+  let description = document.querySelector('meta[name="description"]');
+  if (!description) {
+    description = document.createElement("meta");
+    description.setAttribute("name", "description");
+    document.head.appendChild(description);
+  }
+  description.setAttribute("content", String(to.meta?.description || "BundleBee curates distinctive gifts through thoughtful, maker-first shop windows."));
+
+  let canonical = document.querySelector('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement("link");
+    canonical.setAttribute("rel", "canonical");
+    document.head.appendChild(canonical);
+  }
+  if (to.meta?.indexable === false) canonical.removeAttribute("href");
+  else canonical.setAttribute("href", `https://bundlebee.co.uk${to.path}`);
+
   let robots = document.querySelector('meta[name="robots"]');
   if (!robots) {
     robots = document.createElement("meta");

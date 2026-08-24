@@ -19,6 +19,11 @@ const {
   normaliseSlug,
   validateShoppingPayload,
 } = require("../utils/validation");
+const {
+  canPreviewProgramme,
+  createPreviewToken,
+  isPreviewToken,
+} = require("../utils/partnerPreview");
 
 const router = express.Router();
 const adminOnly = [requireVerified2FA, roleMiddleware("admin")];
@@ -30,6 +35,20 @@ const awinCsvUpload = multer({
     callback(csvFile ? null : new Error("Please upload an Awin CSV export"), csvFile);
   },
 }).single("file");
+
+async function ensurePreviewTokens() {
+  const missing = await AffiliateProgramme.find({
+    active: { $ne: false },
+    status: "applied",
+    reviewDecision: { $ne: "rejected" },
+    $or: [{ previewToken: { $exists: false } }, { previewToken: "" }],
+  }).select("+previewToken");
+
+  await Promise.all(missing.map((programme) => {
+    programme.previewToken = createPreviewToken();
+    return programme.save();
+  }));
+}
 
 function receiveAwinCsv(req, res, next) {
   awinCsvUpload(req, res, (error) => {
@@ -289,6 +308,41 @@ router.get("/collections/:slug", async (req, res) => {
   }
 });
 
+router.get("/partner-previews/:token", async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim().toLowerCase();
+    if (!isPreviewToken(token)) {
+      return res.status(404).json({ message: "Concept preview not found" });
+    }
+
+    const programme = await AffiliateProgramme.findOne({
+      previewToken: token,
+      active: { $ne: false },
+      status: "applied",
+      reviewDecision: { $ne: "rejected" },
+    }).select("name network suggestedFit fitReasons awin.descriptionShort awin.primarySector awin.parentSectors awin.subSectors");
+
+    if (!programme) return res.status(404).json({ message: "Concept preview not found" });
+
+    res.set("Cache-Control", "private, no-store, max-age=0");
+    res.json({
+      name: programme.name,
+      network: programme.network,
+      suggestedFit: programme.suggestedFit,
+      fitReasons: programme.fitReasons || [],
+      description: programme.awin?.descriptionShort || "",
+      sector: programme.awin?.primarySector || "",
+      sectors: [
+        ...(programme.awin?.parentSectors || []),
+        ...(programme.awin?.subSectors || []),
+      ],
+    });
+  } catch (error) {
+    console.error("Failed to load partner concept preview:", error);
+    res.status(500).json({ message: "Unable to load concept preview" });
+  }
+});
+
 router.get("/admin/products", ...adminOnly, async (_req, res) => {
   res.json(
     await Product.find()
@@ -354,7 +408,8 @@ router.put("/admin/collections/:id", ...adminOnly, validate("collection"), async
 });
 
 router.get("/admin/affiliate-programmes", ...adminOnly, async (_req, res) => {
-  res.json(await AffiliateProgramme.find().sort({ updatedAt: -1 }));
+  await ensurePreviewTokens();
+  res.json(await AffiliateProgramme.find().select("+previewToken").sort({ updatedAt: -1 }));
 });
 router.post("/admin/affiliate-programmes/import/awin", ...adminOnly, receiveAwinCsv, async (req, res) => {
   try {
@@ -461,7 +516,12 @@ router.post("/admin/affiliate-programmes/import/awin", ...adminOnly, receiveAwin
   }
 });
 router.post("/admin/affiliate-programmes", ...adminOnly, validate("programme"), async (req, res) => {
-  try { res.status(201).json(await AffiliateProgramme.create(req.body)); } catch (error) { sendAdminError(res, error); }
+  try {
+    const payload = { ...req.body };
+    if (canPreviewProgramme(payload)) payload.previewToken = createPreviewToken();
+    const item = await AffiliateProgramme.create(payload);
+    res.status(201).json(await AffiliateProgramme.findById(item._id).select("+previewToken"));
+  } catch (error) { sendAdminError(res, error); }
 });
 router.patch("/admin/affiliate-programmes/:id/review", ...adminOnly, async (req, res) => {
   try {
@@ -481,7 +541,11 @@ router.patch("/admin/affiliate-programmes/:id/review", ...adminOnly, async (req,
 });
 router.put("/admin/affiliate-programmes/:id", ...adminOnly, validate("programme"), async (req, res) => {
   try {
-    const item = await AffiliateProgramme.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const existing = await AffiliateProgramme.findById(req.params.id).select("+previewToken");
+    if (!existing) return res.status(404).json({ message: "Affiliate programme not found" });
+    const payload = { ...req.body };
+    if (canPreviewProgramme(payload) && !existing.previewToken) payload.previewToken = createPreviewToken();
+    const item = await AffiliateProgramme.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true }).select("+previewToken");
     if (!item) return res.status(404).json({ message: "Affiliate programme not found" });
     res.json(item);
   } catch (error) { sendAdminError(res, error); }
