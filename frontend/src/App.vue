@@ -7,7 +7,6 @@
         <router-link to="/">Shop</router-link>
         <a href="/#how-it-works">How it works</a>
         <router-link to="/about">About</router-link>
-        <router-link v-if="isAdmin" to="/admin" rel="nofollow">Admin</router-link>
       </nav>
 
       <div class="bb-actions">
@@ -25,7 +24,7 @@
     <footer class="bb-footer">
       <router-link to="/">BundleBee</router-link>
       <span>Distinctive gifts, chosen with a point of view.</span>
-      <nav aria-label="Footer navigation"><router-link to="/about">About</router-link><router-link to="/editorial-standards">Our promise & affiliate disclosure</router-link><router-link to="/for-partners">For partners</router-link></nav>
+      <nav aria-label="Footer navigation"><router-link to="/about">About</router-link><router-link to="/editorial-standards">Our promise & affiliate disclosure</router-link><router-link to="/for-partners">For partners</router-link><router-link to="/admin" rel="nofollow">Admin</router-link></nav>
     </footer>
   </div>
 </template>
